@@ -1,0 +1,7 @@
+description: "Resource profile for high-concurrency (100-200 players) Minecraft servers."
+config:
+  limits.cpu: "8"
+  limits.cpu.priority: "8"
+  limits.memory: "16GB"
+  limits.memory.swap: "false"
+  limits.disk.priority: "10"

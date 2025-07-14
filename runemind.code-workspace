@@ -1,0 +1,25 @@
+{
+	"folders": [
+		{
+			"path": "."
+		}
+	],
+	"settings": {
+		"files.exclude": {
+			"**/.git": true,
+			"**/.svn": true,
+			"**/.DS_Store": true,
+		},
+		"java.server.launchMode": "Standard",
+		"java.import.gradle.enabled": false,
+		"java.import.exclusions": [
+			"mods/*",
+			"plugins/*"
+		],
+		"java.project.sourcePaths": [
+			"mods/yungapi"
+		],
+		"java.configuration.updateBuildConfiguration": "interactive",
+		"java.compile.nullAnalysis.mode": "automatic"
+	}
+}
