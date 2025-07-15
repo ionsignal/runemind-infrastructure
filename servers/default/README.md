@@ -24,10 +24,6 @@ Initial run to generate necessary files:
 java -jar paper.jar --nogui # wait for startup, then > 'stop'
 ```
 
-### Install Plugins
-
-
-
 ### Create Service:
 
 ```bash
