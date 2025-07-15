@@ -8,9 +8,9 @@ regions:
         flags:
             # Disables Player vs. Player combat globally.
             pvp: deny
-            # This flag is important. It ensures that the __global__ region's
-            # flags are checked even when no other regions are present.
-            passthrough: deny
+            # # This flag is important. It ensures that the __global__ region's
+            # # flags are checked even when no other regions are present.
+            # passthrough: deny
         owners: {}
         members: {}
     lobby:
