@@ -10,22 +10,6 @@
 # REMEMBER TO KEEP PERIODICAL BACKUPS.
 #
 regions:
-    world-bounds:
-        min: {x: -300, y: -61, z: -300}
-        max: {x: 0, y: 149, z: 0}
-        members: {}
-        flags: {exit: deny, use: allow, exit-group: ALL}
-        owners: {}
-        type: cuboid
-        priority: 0
-    sky-area:
-        min: {x: -247, y: 30, z: -200}
-        max: {x: -25, y: 148, z: 6}
-        members: {}
-        flags: {}
-        owners: {}
-        type: cuboid
-        priority: 0
     __global__:
         members: {}
         flags: {time-lock: '12000', build: deny, invincible: allow, weather-lock: clear}
