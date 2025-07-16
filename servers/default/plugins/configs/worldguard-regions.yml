@@ -6,7 +6,8 @@ regions:
         type: global
         priority: 0
         flags:
-            # Disables Player vs. Player combat globally.
+            time-lock: '12000'
+            weather-lock: clear
             pvp: deny
             # # This flag is important. It ensures that the __global__ region's
             # # flags are checked even when no other regions are present.
@@ -19,38 +20,31 @@ regions:
         type: cuboid
         priority: 1
         flags:
-            # --- Player Immunity ---
-            invincible: allow             # Players can't take any damage
+            invincible: allow               # Players can't take any damage
 
-            # --- Building & Interaction ---
             build: deny                     # Denies placing/breaking blocks
             use: deny                       # Denies using blocks like doors, buttons, levers
             interact: deny                  # Denies interacting with crafting tables, anvils, etc.
             chest-access: deny              # Denies opening chests, furnaces, etc.
             
-            # --- Item & Entity Interaction ---
             item-pickup: deny               # Denies picking up items
             item-drop: deny                 # Denies dropping items
             item-frame-rotation: deny       # Denies rotating items in frames
             entity-painting-destroy: deny   # Denies breaking paintings
             entity-item-frame-destroy: deny # Denies breaking item frames
             
-            # --- Combat & Damage ---
             pvp: deny                       # Denies player vs. player combat
             damage-animals: deny            # Denies hurting passive mobs
             mob-damage: deny                # Prevents mobs from damaging players
             
-            # --- Movement & Teleportation ---
             enderpearl: deny                # Denies using ender pearls
             chorus-teleport: deny           # Denies eating chorus fruit
             
-            # --- Miscellaneous Actions ---
             sleep: deny                     # Denies using beds
             tnt: deny                       # Denies igniting TNT
             lighter: deny                   # Denies using flint and steel
             potion-splash: deny             # Denies splash potion effects
             
-            # --- Environmental ---
             creeper-explosion: deny         # Denies block damage from creepers
             other-explosion: deny           # Denies block damage from other explosions
             fire-spread: deny               # Denies fire spread
