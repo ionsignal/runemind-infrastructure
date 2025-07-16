@@ -15,8 +15,8 @@ regions:
         owners: {}
         members: {}
     lobby:
-        min: {x: -20, y: 0, z: -20}
-        max: {x: 20, y: 255, z: 20}
+        min: {x: -161, y: 81, z: -71}
+        max: {x: -71, y: 127, z: 21}
         type: cuboid
         priority: 1
         flags:
