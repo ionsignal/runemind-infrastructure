@@ -14,24 +14,40 @@ worldguard
 axiompaper
 ```
 
+## General
+
+```bash
+/setworldspawn <x> <y> <z>
+```
+
 ## Chunky
 
-The following sets a dev sized world border, that matches the `max-world-size=176` property in `server.properties`
+The following sets a dev sized world border, that matches the `max-world-size=384` property in `server.properties`
 
-```
-/worldborder set 176
-/chunky worldborder
-```
+```bash
+/worldborder set 384 # max-world-size=384
+/chunky world world # chunky select world
+/chunky worldborder # chunky selection to match the world border
+/chunky start # begin pre-chunking
 
-Trim off chunks that were created outside the world border.
-TODO: test this to learn the best settings, like are we getting chunks trimmed on world initial creation? (we don't want that)
-
-```
-/chunky trim world square 0 0 88
+/chunky trim world square 0 0 384 # trim chunks (remove)
+/chunky trim world_name square 0.0 0.0 5000.0 5000.0 inside # delete the entire world in-game for re-generation
 ```
 
-Delete the entire world in-game for re-generation
+## WorldEdit
 
-```
-/chunky trim world_name square 0.0 0.0 5000.0 5000.0 inside
+```bash
+//wand # get the wan tool
+
+//pos1 -192 -64 -192 # create a selection manually with values (p1 worldborder example)
+//pos2 192 319 192 # create a selection manually with values (p2 worldborder example)
+
+//hpos1 # create a selection of the block you're looking (p1)
+//hpos2 # create a selection of the block you're looking (p2)
+
+//chunk # selects the entire chunk that you are currently standing in.
+//size # dimensions of your current selection 
+
+//sel # select your current selection
+//desel # deselect your current selection
 ```
