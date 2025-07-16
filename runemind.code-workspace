@@ -13,11 +13,13 @@
 		"java.server.launchMode": "Standard",
 		"java.import.gradle.enabled": false,
 		"java.import.exclusions": [
-			"mods/*",
-			"plugins/*"
+			"mods",
+			"plugins"
 		],
 		"java.project.sourcePaths": [
-			"mods/yungapi"
+			"mods/ionwayfare",
+			"mods/yungapi",
+			"mods/yungbridges"
 		],
 		"java.configuration.updateBuildConfiguration": "interactive",
 		"java.compile.nullAnalysis.mode": "automatic"
