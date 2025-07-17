@@ -11,8 +11,8 @@
 #
 regions:
     lobby:
-        min: {x: -161, y: 81, z: -71}
-        max: {x: -71, y: 127, z: 21}
+        min: {x: -162, y: 81, z: -74}
+        max: {x: -70, y: 127, z: 23}
         members: {}
         flags: {other-explosion: deny, lava-fire: deny, chorus-teleport: deny, use: deny,
             invincible: allow, lighter: deny, interact: deny, chest-access: deny,
