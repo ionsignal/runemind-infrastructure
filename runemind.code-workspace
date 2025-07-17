@@ -19,7 +19,8 @@
 		"java.project.sourcePaths": [
 			"mods/ionwayfare",
 			"mods/yungapi",
-			"mods/yungbridges"
+			"mods/yungbridges",
+			"plugins/ionretra"
 		],
 		"java.configuration.updateBuildConfiguration": "interactive",
 		"java.compile.nullAnalysis.mode": "automatic"
