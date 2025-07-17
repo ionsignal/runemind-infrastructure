@@ -57,7 +57,8 @@ WantedBy=multi-user.target
 TODO: add code to get the uid and gid
 
 ```bash
-lxc file push ./[*].jar mc-server-lobby/opt/minecraft/server/plugins/ --uid=109 --gid=114
+scp -P 2222 ./ ubuntu@office.ionsignal.com:~
+lxc file push ~/ mc-server-lobby/opt/minecraft/server/plugins/ --uid=109 --gid=114
 ```
 
 #### Performance Tuning for 100-200 Players
