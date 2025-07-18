@@ -8,7 +8,7 @@ The following is how we inject an update into a LXD profile
 Replace [profile] with the profile you are targeting
 
 ```bash
-cat /workspace/minecraft-infrastructure/configs/lxd/[profile].yaml | lxc profile edit [profile]
+cat /workspace/runemind-network/configs/lxd/[profile].yaml | lxc profile edit [profile]
 lxc profile show minecraft-base
 ```
 
