@@ -22,9 +22,14 @@ config:
       - ca-certificates
       - apt-transport-https
       - gnupg
+      - bash-completion
 
     # Commands to execute after package installation
     runcmd:
+      # --- Basics
+      - ['sed', '-i', 's/^#\(force_color_prompt=yes\)/\1/', '/root/.bashrc']
+      - ['/bin/bash', '-c', "grep -q -F 'alias ls' /root/.bashrc || echo 'alias ls=\"ls --color=auto\"' >> /root/.bashrc"]
+
       # --- Configure Timezone and Locales ---
       - timedatectl set-timezone UTC
       - locale-gen en_US.UTF-8
