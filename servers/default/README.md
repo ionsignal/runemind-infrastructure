@@ -1,3 +1,7 @@
+# Servers
+
+## Default
+
 ### Minecraft Server Lobby Install
 
 Download and install Paper JAR
@@ -24,7 +28,7 @@ Initial run to generate necessary files:
 java -jar paper.jar --nogui # wait for startup, then > 'stop'
 ```
 
-### Create Service:
+### Create Service
 
 ```bash
 sudo vim /etc/systemd/system/minecraft.service
@@ -66,44 +70,46 @@ lxc file push ~/ mc-server-lobby/opt/minecraft/server/plugins/ --uid=109 --gid=1
 With the server running, it's time to optimize its configuration files for a high player count. These files are located in `/opt/minecraft/server/`. Stop your server (`sudo systemctl stop minecraft`) before editing these files.
 
 The key files are:
-*   `server.properties`: Vanilla Minecraft settings.
-*   `bukkit.yml`: Settings from the Bukkit API.
-*   `spigot.yml`: Settings from the Spigot API.
-*   `config/paper-world-defaults.yml`: Paper's powerful, per-world configuration defaults.
+
+* `server.properties`: Vanilla Minecraft settings.
+* `bukkit.yml`: Settings from the Bukkit API.
+* `spigot.yml`: Settings from the Spigot API.
+* `config/paper-world-defaults.yml`: Paper's powerful, per-world configuration defaults.
 
 ##### Key Concept: `view-distance` vs. `simulation-distance`
 
 Understanding this distinction is crucial for performance.
-*   **`view-distance`**: Determines how many chunks of terrain are *visible* to a player. It primarily impacts network bandwidth and client-side rendering.
-*   **`simulation-distance`**: Determines how many chunks around a player are actively *ticking*—processing mobs, growing crops, and running redstone. This has a massive impact on CPU performance.
+
+* **`view-distance`**: Determines how many chunks of terrain are *visible* to a player. It primarily impacts network bandwidth and client-side rendering.
+* **`simulation-distance`**: Determines how many chunks around a player are actively *ticking*—processing mobs, growing crops, and running redstone. This has a massive impact on CPU performance.
 
 For a server with 100+ players, you must keep `simulation-distance` low. A higher `view-distance` can be used to give players a better sense of scale without the same performance hit.
 
 ##### Recommended Configuration Changes
 
-1.  **`server.properties`**
-    *   `view-distance`: `10` (A good starting point. You can lower it to `8` if needed.)
-    *   `simulation-distance`: `4` or `5` (This is one of the most important performance settings. Do not set this high.)
-    *   `network-compression-threshold`: `256` (Reduces CPU usage for network packets.)
+1. **`server.properties`**
+    * `view-distance`: `10` (A good starting point. You can lower it to `8` if needed.)
+    * `simulation-distance`: `4` or `5` (This is one of the most important performance settings. Do not set this high.)
+    * `network-compression-threshold`: `256` (Reduces CPU usage for network packets.)
 
-2.  **`bukkit.yml`**
-    *   `spawn-limits`: Adjust these based on your server type. For survival, you might lower `monsters` to `50` and `animals` to `10`.
-    *   `chunk-gc.period-in-ticks`: `400` (Cleans up unused chunks less frequently.)
-    *   `ticks-per.monster-spawns`: `4` (Slightly reduces how often monster spawn attempts are made.)
+2. **`bukkit.yml`**
+    * `spawn-limits`: Adjust these based on your server type. For survival, you might lower `monsters` to `50` and `animals` to `10`.
+    * `chunk-gc.period-in-ticks`: `400` (Cleans up unused chunks less frequently.)
+    * `ticks-per.monster-spawns`: `4` (Slightly reduces how often monster spawn attempts are made.)
 
-3.  **`spigot.yml`**
-    *   `entity-activation-range`: Lowering these values prevents entities far from players from being ticked. Set `animals` to `16`, `monsters` to `24`, and `misc` to `8`.
-    *   `mob-spawn-range`: Set this to be one less than your `simulation-distance`. For a simulation distance of 5, set this to `4`.
-    *   `merge-radius.item`: `4.0`
-    *   `merge-radius.exp`: `6.0` (Merges dropped items and XP orbs more aggressively to reduce entities.)
+3. **`spigot.yml`**
+    * `entity-activation-range`: Lowering these values prevents entities far from players from being ticked. Set `animals` to `16`, `monsters` to `24`, and `misc` to `8`.
+    * `mob-spawn-range`: Set this to be one less than your `simulation-distance`. For a simulation distance of 5, set this to `4`.
+    * `merge-radius.item`: `4.0`
+    * `merge-radius.exp`: `6.0` (Merges dropped items and XP orbs more aggressively to reduce entities.)
 
-4.  **`config/paper-world-defaults.yml`** (This file contains Paper's most impactful optimizations)
-    *   `optimize-explosions`: `true` (Uses Paper's highly efficient explosion algorithm.)
-    *   `mob-spawner-tick-rate`: `2` (Reduces how often mob spawners are checked, with minimal impact on rates.)
-    *   `use-faster-eigencraft-redstone`: `true` (Enables a faster redstone implementation.)
-    *   `prevent-moving-into-unloaded-chunks`: `true` (Prevents players from causing lag by moving into chunks that haven't loaded yet.)
-    *   `per-player-mob-spawns`: `true` (This is a game-changer. It spawns mobs based on individual players rather than a global cap, resulting in a much more consistent and fair mob spawning experience in multiplayer.)
-    *   `despawn-ranges`: Set soft to `28` and hard to `96`. This will more aggressively despawn mobs that are far away from players.
-    *   `max-auto-save-chunks-per-tick`: `8` (Reduces lag spikes from world saving by spreading the load over more time.)
+4. **`config/paper-world-defaults.yml`** (This file contains Paper's most impactful optimizations)
+    * `optimize-explosions`: `true` (Uses Paper's highly efficient explosion algorithm.)
+    * `mob-spawner-tick-rate`: `2` (Reduces how often mob spawners are checked, with minimal impact on rates.)
+    * `use-faster-eigencraft-redstone`: `true` (Enables a faster redstone implementation.)
+    * `prevent-moving-into-unloaded-chunks`: `true` (Prevents players from causing lag by moving into chunks that haven't loaded yet.)
+    * `per-player-mob-spawns`: `true` (This is a game-changer. It spawns mobs based on individual players rather than a global cap, resulting in a much more consistent and fair mob spawning experience in multiplayer.)
+    * `despawn-ranges`: Set soft to `28` and hard to `96`. This will more aggressively despawn mobs that are far away from players.
+    * `max-auto-save-chunks-per-tick`: `8` (Reduces lag spikes from world saving by spreading the load over more time.)
 
 After making these changes, start your server again (`sudo systemctl start minecraft`). You now have a solid, performance-tuned Paper server ready for your community.

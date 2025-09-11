@@ -12,14 +12,16 @@
 		},
 		"java.server.launchMode": "Standard",
 		"java.import.gradle.enabled": false,
+		"java.import.maven.enabled": false,
 		"java.import.exclusions": [
 			"mods",
 			"plugins"
 		],
 		"java.project.sourcePaths": [
-			"mods/ionwayfare",
+			// "mods/ionwayfare",
 			"mods/yungapi",
 			"mods/yungbridges",
+			"plugins/ionnerrus",
 			"plugins/ionretra"
 		],
 		"java.configuration.updateBuildConfiguration": "interactive",
