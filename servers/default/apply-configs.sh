@@ -14,10 +14,9 @@ files_to_copy=(
     ["./configs/paper-world-defaults.yml"]="../../../server/config/paper-world-defaults.yml"
     ["./configs/paper-global.yml"]="../../../server/config/paper-global.yml"
     ["./configs/paper-world.yml"]="../../../server/world/paper-world.yml"
-    ["./plugins/configs/worldedit-config.yml"]="../../../server/plugins/WorldEdit/config.yml"
-    ["./plugins/configs/worldguard-config.yml"]="../../../server/plugins/WorldGuard/config.yml"
-    ["./plugins/configs/worldguard-regions.yml"]="../../../server/plugins/WorldGuard/worlds/world/regions.yml"
-    ["./plugins/configs/nova-config.yml"]="../../../server/plugins/Nova/configs/config.yml"
+    # ["./plugins/configs/worldedit-config.yml"]="../../../server/plugins/WorldEdit/config.yml"
+    # ["./plugins/configs/worldguard-config.yml"]="../../../server/plugins/WorldGuard/config.yml"
+    # ["./plugins/configs/worldguard-regions.yml"]="../../../server/plugins/WorldGuard/worlds/world/regions.yml"
     ["./plugins/configs/viaversion-config.yml"]="../../../server/plugins/ViaVersion/config.yml"
 )
 
@@ -72,8 +71,6 @@ echo
 # -r: do not allow backslashes to escape characters
 read -p "Do you want to apply the above changes and copy the files? (y/n) " -n 1 -r
 echo
-
-
 
 # Check if the user's reply was 'y' or 'Y'.
 if [[ $REPLY =~ ^[Yy]$ ]]; then
