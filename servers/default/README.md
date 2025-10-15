@@ -7,12 +7,12 @@
 Download and install Paper JAR
 
 ```bash
-lxc launch ubuntu-minimal:22.04 mc-server-lobby --profile minecraft-base --profile minecraft-lobby
-lxc exec mc-server-lobby -- bash
+lxc launch ubuntu-minimal:22.04 mc-runemind-lobby --profile minecraft-base --profile minecraft-lobby
+lxc exec mc-runemind-lobby -- bash
 sudo -u minecraft -s
-git clone git@github.com:ionsignal/minecraft-infrastructure.git ./infrastructure
+git clone git@github.com:ionsignal/runemind-infrastructure.git ./infrastructure
 cd /opt/minecraft/server
-wget -O paper.jar https://fill-data.papermc.io/v1/objects/d288916c4810640fb19af9a8f281a158aeff740c368350073e26d5dae2eef643/paper-1.21.7-15.jar
+wget -O paper.jar https://fill-data.papermc.io/v1/objects/8de7c52c3b02403503d16fac58003f1efef7dd7a0256786843927fa92ee57f1e/paper-1.21.8-60.jar
 java -jar paper.jar --nogui # Generate init and EULA
 ```
 
@@ -37,26 +37,53 @@ sudo vim /etc/systemd/system/minecraft.service
 ```ini
 [Unit]
 Description=Minecraft Server (Paper)
-After=network.target
+Wants=network-online.target
+After=network-online.target
 
 [Service]
-Type=simple
+Type=forking
 User=minecraft
 Group=minecraft
 WorkingDirectory=/opt/minecraft/server
 
-# Aikar's Flags for optimized garbage collection with Java 21
-# Allocate 10GB of RAM. Adjust -Xms and -Xmx as needed.
-ExecStart=/usr/bin/java -Xms10G -Xmx10G -XX:+UseG1GC -XX:+ParallelRefProcEnabled -XX:MaxGCPauseMillis=200 -XX:+UnlockExperimentalVMOptions -XX:+DisableExplicitGC -XX:+AlwaysPreTouch -XX:G1NewSizePercent=30 -XX:G1MaxNewSizePercent=40 -XX:G1HeapRegionSize=8M -XX:G1ReservePercent=20 -XX:G1HeapWastePercent=5 -XX:G1MixedGCCountTarget=4 -XX:InitiatingHeapOccupancyPercent=15 -XX:G1MixedGCLiveThresholdPercent=90 -XX:G1RSetUpdatingPauseTimePercent=5 -XX:SurvivorRatio=32 -XX:+PerfDisableSharedMem -XX:MaxTenuringThreshold=1 -XX:+EnableDynamicAgentLoading -Dusing.aikars.flags=https://mcflags.emc.gs -Daikars.new.flags=true -jar paper.jar --nogui
+# Use tmux to run the server in a detached session
+# The session is named 'minecraft'
+ExecStart=/usr/bin/tmux new-session -d -s minecraft /usr/bin/java -Xms10G -Xmx10G -XX:+UseG1GC -XX:+ParallelRefProcEnabled -XX:MaxGCPauseMillis=200 -XX:+UnlockExperimentalVMOptions -XX:+DisableExplicitGC -XX:+AlwaysPreTouch -XX:G1NewSizePercent=30 -XX:G1MaxNewSizePercent=40 -XX:G1HeapRegionSize=8M -XX:G1ReservePercent=20 -XX:G1HeapWastePercent=5 -XX:G1MixedGCCountTarget=4 -XX:InitiatingHeapOccupancyPercent=15 -XX:G1MixedGCLiveThresholdPercent=90 -XX:G1RSetUpdatingPauseTimePercent=5 -XX:SurvivorRatio=32 -XX:+PerfDisableSharedMem -XX:MaxTenuringThreshold=1 -XX:+EnableDynamicAgentLoading -Dusing.aikars.flags=https://mcflags.emc.gs -Daikars.new.flags=true -jar paper.jar --nogui
+
+# Send the 'stop' command to the tmux session for a graceful shutdown
+# Then, wait until the tmux session (and the server) has fully terminated
+ExecStop=/usr/bin/tmux send-keys -t minecraft "stop" C-m ; /bin/sleep 10
 
 Restart=on-failure
 RestartSec=10
+TimeoutStopSec=120
 
 [Install]
 WantedBy=multi-user.target
 ```
 
-#### Inject Compiled Plugins (LXD)
+#### Reload and Test the Service
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl start minecraft
+sudo systemctl status minecraft
+sudo systemctl stop minecraft
+```
+
+#### Attaching to the Server Console
+
+As the 'minecraft' user:
+To detach from the console without stopping the server, press: Ctrl+b, then d
+
+```bash
+sudo -u minecraft -s
+tmux attach-session -t minecraft
+```
+
+Don't forget to delete the old version of the plugin before restarting
+
+### Inject Compiled Plugins (LXD)
 
 TODO: add code to get the uid and gid
 
