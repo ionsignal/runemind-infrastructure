@@ -92,6 +92,15 @@ scp -P 2222 ./ ubuntu@office.ionsignal.com:~
 lxc file push ~/ mc-server-lobby/opt/minecraft/server/plugins/ --uid=109 --gid=114
 ```
 
+### Anonymous Git Configuration
+
+This is needed to successfully compile some of the plugins
+
+```bash
+git config --global user.name "anon"
+git config --global user.email "anon@anon.com"
+```
+
 #### Performance Tuning for 100-200 Players
 
 With the server running, it's time to optimize its configuration files for a high player count. These files are located in `/opt/minecraft/server/`. Stop your server (`sudo systemctl stop minecraft`) before editing these files.
