@@ -74,14 +74,14 @@ sudo systemctl stop minecraft
 #### Attaching to the Server Console
 
 As the 'minecraft' user:
-To detach from the console without stopping the server, press: Ctrl+b, then d
+To detach from the console without stopping the server, press: (ctrl+b), then (d).
 
 ```bash
 sudo -u minecraft -s
 tmux attach-session -t minecraft
 ```
 
-Don't forget to delete the old version of the plugin before restarting
+Don't forget to delete the old version of the plugin before restarting.
 
 ### Inject Compiled Plugins (LXD)
 
@@ -94,7 +94,7 @@ lxc file push ~/ mc-server-lobby/opt/minecraft/server/plugins/ --uid=109 --gid=1
 
 ### Anonymous Git Configuration
 
-This is needed to successfully compile some of the plugins
+This is needed to successfully compile some of the server plugins.
 
 ```bash
 git config --global user.name "anon"
