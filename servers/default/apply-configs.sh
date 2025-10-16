@@ -14,10 +14,8 @@ files_to_copy=(
     ["./configs/paper-world-defaults.yml"]="../../../server/config/paper-world-defaults.yml"
     ["./configs/paper-global.yml"]="../../../server/config/paper-global.yml"
     ["./configs/paper-world.yml"]="../../../server/world/paper-world.yml"
-    # ["./plugins/configs/worldedit-config.yml"]="../../../server/plugins/WorldEdit/config.yml"
-    # ["./plugins/configs/worldguard-config.yml"]="../../../server/plugins/WorldGuard/config.yml"
-    # ["./plugins/configs/worldguard-regions.yml"]="../../../server/plugins/WorldGuard/worlds/world/regions.yml"
     ["./plugins/configs/viaversion-config.yml"]="../../../server/plugins/ViaVersion/config.yml"
+    ["./plugins/configs/huskclaims-config.yml"]="../../../server/plugins/HuskClaims/config.yml"
 )
 
 # A flag to track if any changes are detected.
