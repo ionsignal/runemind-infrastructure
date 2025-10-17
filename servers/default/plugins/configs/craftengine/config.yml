@@ -34,7 +34,7 @@ resource-pack:
       fake-directory: false
       escape-unicode: false
       resource-location:
-        enable: true
+        enable: false
         random-namespace:
           amount: 16 # 0 = disable
           length: 9
@@ -69,15 +69,14 @@ resource-pack:
   # - LATEST: the latest client version
   # - SERVER: the current server version
   supported-version:
-    min: SERVER
-    max: LATEST
+    min: 1.21.5
+    max: 1.21.8
   # Remove 1.21.5+ tinted_leaves particles
   remove-tinted-leaves-particle: true
-  merge-external-folders:
-    - "ModelEngine/resource pack"
-  merge-external-zip-files:
-    - "CustomNameplates/resourcepack.zip"
-    - "BetterModel/build.zip"
+  merge-external-folders: ["VanillaExperience"]
+  merge-external-zip-files: []
+  # - "CustomNameplates/resourcepack.zip"
+  # - "BetterModel/build.zip"
   exclude-file-extensions: ["md", "psd", "bbmodel", "db", "ini"]
   # Exclude the shaders when generating the resource pack
   exclude-core-shaders: false
@@ -92,7 +91,7 @@ resource-pack:
     # Read this page for more host types: https://xiao-momi.github.io/craft-engine-wiki/getting_start/set_up_host
     hosting:
       - type: "self"
-        ip: "localhost"
+        ip: "127.0.0.1"
         port: 8163
         protocol: "http"
         deny-non-minecraft-request: true
@@ -176,7 +175,7 @@ item:
   always-use-item-model: true
   # Since Minecraft renders lore text in italics by default, you can
   # optionally prefix any lore with <!i> to remove the italic formatting.
-  non-italic-tag: false
+  non-italic-tag: true
   # The default material to use as base item if not specified
   default-material: nether_brick
   # Defines the trigger condition for the item updater.
@@ -209,7 +208,7 @@ equipment:
 block:
   # This decides the amount of real blocks on serverside. You should only consider increasing this value when your server state is insufficient.
   # It is recommended to increase it by 500 each time. This option requires a restart to apply.
-  serverside-blocks: 2000
+  serverside-blocks: 1
   # Enables the sound system, which prevents the client from hearing some non-custom block sounds and improves the client experience.
   sound-system:
     enable: true
@@ -488,8 +487,8 @@ chunk-system:
 
 # Enables or disables debug mode
 debug:
-  common: false
+  common: true
   packet: false
   furniture: false
   item: false
-  resource-pack: false
+  resource-pack: true

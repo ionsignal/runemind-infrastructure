@@ -16,7 +16,8 @@ files_to_copy=(
     ["./configs/paper-world.yml"]="../../../server/world/paper-world.yml"
     ["./plugins/configs/viaversion-config.yml"]="../../../server/plugins/ViaVersion/config.yml"
     ["./plugins/configs/huskclaims-config.yml"]="../../../server/plugins/HuskClaims/config.yml"
-    ["./plugins/configs/craftengine-config.yml"]="../../../server/plugins/CraftEngine/config.yml"
+    ["./plugins/configs/craftengine/config.yml"]="../../../server/plugins/CraftEngine/config.yml"
+    ["./plugins/configs/craftengine/default/pack.yml"]="../../../server/plugins/CraftEngine/resources/default/pack.yml"
 )
 
 # A flag to track if any changes are detected.
