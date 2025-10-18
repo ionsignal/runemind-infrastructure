@@ -21,10 +21,8 @@
 
 * **Economist**
     Our chosen economy core. Its modern, `CompletableFuture`-based API is a perfect architectural match for the Nerrus Engine's asynchronous design, ensuring non-blocking, high-performance transactions.
-* **EcoShop/Custom**
+* **EcoShop**
     Creates the foundation for a physical, player-driven market. This provides a tangible economic system that Personas can be programmed to observe and eventually participate in.
-* **FancyHolograms**
-    The best tool for non-intrusive, contextual information. We will use this to display Persona status (e.g., "Goal: Farming Wheat"), mark `SmartObjects`, and create tutorial guides.
 * **Chatter**
     A modern, lightweight chat formatting plugin that supports MiniMessage. It fills the gap left by removing CMI/EssentialsX and allows for clean, permission-based chat formats for players and Personas.
 
