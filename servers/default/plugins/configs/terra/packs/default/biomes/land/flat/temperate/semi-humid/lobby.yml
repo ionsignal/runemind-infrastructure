@@ -1,0 +1,37 @@
+id: LOBBY
+type: BIOME
+extends: [EQ_PLAIN, BASE]
+vanilla: minecraft:plains
+color: $biomes/colors.yml:PLAINS
+
+tags:
+  - USE_RIVER_TEMPERATE_MARSH
+
+colors:
+  grass: 0x91bd59
+  foliage: 0x77ab2f
+  water: 0x44aff5
+  water-fog: 0x44aff5
+
+palette:
+  - GRASS: 319
+  - SAND: 64
+  - MUDDY_BEACH: 61
+  - << meta.yml:palette-bottom
+
+slant:
+  - threshold: 4
+    palette:
+      - BLOCK:minecraft:stone: 319
+      - << meta.yml:palette-bottom
+
+features:
+  flora:
+    - GRASS
+    - BUSHES
+    - POPPY_PATCH
+    - OXEYE_DAISY_PATCH
+    - DANDELION_PATCH
+  trees:
+    - MIXED_BUSHES
+    - EUCALYPTUS_TREES

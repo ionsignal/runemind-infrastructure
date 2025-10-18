@@ -41,3 +41,7 @@ ticks-per:
   ambient-spawns: 1
   autosave: 6000
 aliases: now-in-commands.yml
+worlds:
+  world:
+    # biome-provider:
+    generator: Terra:DEFAULT
