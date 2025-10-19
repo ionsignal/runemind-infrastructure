@@ -4,12 +4,38 @@
 
 ### Minecraft Server Lobby Install
 
-Download and install Paper JAR
-
 ```bash
 lxc launch ubuntu-minimal:22.04 mc-runemind-lobby --profile minecraft-base --profile minecraft-lobby
 lxc exec mc-runemind-lobby -- bash
 sudo -u minecraft -s
+```
+
+Configure `github` deploy key
+
+```bash
+ssh-keygen -t ed25519 -C "neutrino84@gmail.com"
+# save to /opt/minecraft/.ssh/id_ed25519_ (nerrus and infrastructure need separate deploy keys)
+```
+
+```conf
+# Nerrus (uses the alias github.com-personal)
+Host github.com-nerrus
+  HostName github.com
+  User git
+  IdentityFile ~/.ssh/id_ed25519
+  IdentitiesOnly yes
+
+# RundMind Infrastructure (uses the alias github.com-rune)
+Host github.com-infrastructure
+  HostName github.com
+  User git
+  IdentityFile ~/.ssh/id_ed25519_infrastructure
+  IdentitiesOnly yes
+```
+
+Download and install Paper JAR
+
+```bash
 git clone git@github.com:ionsignal/runemind-infrastructure.git ./infrastructure
 cd /opt/minecraft/server
 wget -O paper.jar https://fill-data.papermc.io/v1/objects/8de7c52c3b02403503d16fac58003f1efef7dd7a0256786843927fa92ee57f1e/paper-1.21.8-60.jar
