@@ -1,0 +1,6 @@
+# Defines samplers used for biome placement.
+samplers:
+  spawn-square:
+    # Added the full namespace for the EXPRESSION sampler type.
+    type: config-noise-function:EXPRESSION
+    expression: 1 - 2 * (sqrt(x*x + z*z) < 35) # 1 - 2 * (max(abs(x), abs(z)) < 75)

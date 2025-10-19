@@ -1,3 +1,34 @@
+# biomes:
+#   type: SINGLE
+#   biome: LOBBY # The singular biome that will be used.
+
+# Defines the main biome provider for the world.
 biomes:
-  type: SINGLE
-  biome: LOBBY # The singular biome that will be used.
+  type: biome-provider-pipeline:PIPELINE
+
+  # Add these two lines for blending
+  blend.sampler: $math/samplers/simplex.yml:samplers.simplex
+  blend.amplitude: 15.0 # A value of 15 will shift the border by up to 15 blocks.
+
+  pipeline:
+    # 1. The SOURCE defines the base biome layout.
+    # A BiomeProvider is NOT a valid Source. We must use a SAMPLER source
+    # configured with a CONSTANT sampler to achieve a single-biome base.
+    source:
+      type: biome-provider-pipeline:SAMPLER
+      sampler:
+        type: config-noise-function:CONSTANT
+        value: 0 # This value doesn't matter when there's only one biome.
+      biomes:
+        - LOBBY: 1 # This creates a probability collection with only one item.
+
+    # 2. STAGES modify the biome layout from the source.
+    stages:
+      - type: biome-provider-pipeline:REPLACE
+        from: "BIOME:LOBBY"
+        to:
+          # Sampler value < 0 maps to PLAINS (inside the square)
+          - TOWN: 1
+          # Sampler value >= 0 maps to SELF, keeping the LOBBY biome (outside the square)
+          - SELF: 1
+        sampler: $math/samplers/square_mask.yml:samplers.spawn-square

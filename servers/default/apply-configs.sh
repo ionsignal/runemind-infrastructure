@@ -19,7 +19,9 @@ files_to_copy=(
     ["./plugins/configs/terra/packs/default/pack.yml"]="../../../server/plugins/Terra/packs/default/pack.yml"
     ["./plugins/configs/terra/packs/default/biome-providers/single.yml"]="../../../server/plugins/Terra/packs/default/biome-providers/single.yml"
     ["./plugins/configs/terra/packs/default/biome/land/flat/temperate/semi-humid/lobby.yml"]="../../../server/plugins/Terra/packs/default/biome/land/flat/temperate/semi-humid/lobby.yml"
+    ["./plugins/configs/terra/packs/default/biome/land/flat/temperate/semi-humid/town.yml"]="../../../server/plugins/Terra/packs/default/biome/land/flat/temperate/semi-humid/town.yml"
     ["./plugins/configs/terra/packs/default/features/vegetation/trees/eucalyptus_trees.yml"]="../../../server/plugins/Terra/packs/default/features/vegetation/trees/eucalyptus_trees.yml"
+    ["./plugins/configs/terra/packs/default/math/samplers/square_mask.yml"]="../../../server/plugins/Terra/packs/default/math/samplers/square_mask.yml"
     ["./plugins/configs/huskclaims-config.yml"]="../../../server/plugins/HuskClaims/config.yml"
     ["./plugins/configs/huskhomes-config.yml"]="../../../server/plugins/HuskHomes/config.yml"
     ["./plugins/configs/craftengine/config.yml"]="../../../server/plugins/CraftEngine/config.yml"
@@ -52,7 +54,7 @@ for src in "${!files_to_copy[@]}"; do
         # Destination exists, so run the diff command.
         # `diff` will exit with a non-zero status code if files are different.
         # We capture the output and check the exit code.
-        if ! diff_output=$(diff -u "$src" "$dest"); then
+        if ! diff_output=$(diff -u "$dest" "$src"); then
             echo "CHANGE: Differences found."
             echo "$diff_output"
             changes_found=true
