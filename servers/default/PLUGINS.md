@@ -39,6 +39,13 @@ cd ./craftengine
 mv #...
 ```
 
+## Install Assets
+
+```bash
+cd ~/infrastructure/servers/default/assets
+unzip vanilla-experience.zip -d ../../../../server/plugins/VanillaExperience
+```
+
 ## General
 
 ```bash
