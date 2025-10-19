@@ -7,7 +7,6 @@ wget https://cdn.modrinth.com/data/NpvuJQoq/versions/cQ9Te0jw/ViaBackwards-5.5.2
 wget https://cdn.modrinth.com/data/P1OZGk5p/versions/T2fG0MEB/ViaVersion-5.5.2-SNAPSHOT.jar -O viaversion-5.5.2.jar
 wget https://cdn.modrinth.com/data/fALzjamp/versions/P3y2MXnd/Chunky-Bukkit-1.4.40.jar -O chunky-bukkit-1.4.40.jar
 wget https://cdn.modrinth.com/data/FIlZB9L0/versions/Ufl71nST/Terra-bukkit-6.6.6-BETA%2B451683aff-shaded.jar -O terra-bukkit-6.6.6.jar
-axiompaper
 ```
 
 ## Server Plugin (source)
@@ -18,6 +17,11 @@ axiompaper
 # cd ./fancyplugins
 # ./gradlew :plugins:fancyholograms:shadowJar
 # mv plugins/fancyholograms/build/libs/FancyHolograms-3.0.0-SNAPSHOT.7.jar /opt/minecraft/server/plugins/fancyholograms-3.0.0.jar
+# axiompaper
+git clone https://github.com/Moulberry/AxiomPaperPlugin.git ./axiompaper
+cd ./axiompaper
+./gradlew clean build
+mv ...[name-version]-all.jar
 # huskclaims
 git clone https://github.com/WiIIiam278/HuskClaims.git ./huskclaims
 cd ./huskclaims
