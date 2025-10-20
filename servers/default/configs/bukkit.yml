@@ -23,12 +23,12 @@ settings:
   use-map-color-cache: true
 spawn-limits:
   monsters: 0
-  animals: 70
-  water-animals: 5
-  water-ambient: 20
-  water-underground-creature: 5
-  axolotls: 5
-  ambient: 15
+  animals: 0
+  water-animals: 0
+  water-ambient: 0
+  water-underground-creature: 0
+  axolotls: 0
+  ambient: 0
 chunk-gc:
   period-in-ticks: 600
 ticks-per:
