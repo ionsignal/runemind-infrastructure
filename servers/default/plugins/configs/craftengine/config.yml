@@ -97,7 +97,7 @@ resource-pack:
         bucket: "runemind-lobby"
         path-style: false
         access-key-id: "AKIAUXUWXIK6FFVIJNHQ"
-        secret-access-key: "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"
+        access-key-secret: "fdnjVupRFryd4f35elhw7sFosA4ZLVI+JqP08Yhx"
         disable-calculate-sha256: false
         validity: 10
         rate-map:
