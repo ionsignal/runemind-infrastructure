@@ -36,7 +36,7 @@ mv paper/build/libs/HuskHomes-Paper-4.9.9-d26ee86-indev.jar /opt/minecraft/serve
 git clone https://github.com/Xiao-MoMi/craft-engine.git ./craftengine
 cd ./craftengine
 ./gradlew shadowJar
-mv #...
+mv craft-engine-paper-plugin-0.0.64.17.jar /opt/minecraft/server/plugins/
 ```
 
 ## Install Assets
