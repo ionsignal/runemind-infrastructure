@@ -12,6 +12,10 @@ wget https://cdn.modrinth.com/data/FIlZB9L0/versions/Ufl71nST/Terra-bukkit-6.6.6
 ## Server Plugin (source)
 
 ```bash
+# terra
+# TODO: make our terra pack standalone
+cd /opt/minecraft/server/plugins/Terra
+unzip default.zip -d ./default
 # TODO: remove fancyplugins
 # git clone https://github.com/FancyInnovations/FancyPlugins.git ./fancyplugins
 # cd ./fancyplugins
@@ -70,9 +74,7 @@ The following sets a tiny sized world border, that matches the `max-world-size=3
 
 ## Terra
 
-```bash
-
-```
+First install, you must unzip the default pack into in the default folder.
 
 ## CraftEngine
 
