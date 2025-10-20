@@ -193,13 +193,13 @@ entities:
         maximum: 70.0
         minimum: 50.0
     spawn-limits:
-      ambient: -1
-      axolotls: -1
-      creature: -1
-      monster: -1
-      underground_water_creature: -1
-      water_ambient: -1
-      water_creature: -1
+      ambient: 10
+      axolotls: 0
+      creature: 0
+      monster: 0
+      underground_water_creature: 0
+      water_ambient: 0
+      water_creature: 0
     ticks-per-spawn:
       ambient: -1
       axolotls: -1
