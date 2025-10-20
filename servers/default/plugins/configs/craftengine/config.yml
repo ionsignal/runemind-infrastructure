@@ -90,18 +90,31 @@ resource-pack:
     # If using BungeeCord or Velocity, consider using a proxy-side plugin to handle resource pack delivery.
     # Read this page for more host types: https://xiao-momi.github.io/craft-engine-wiki/getting_start/set_up_host
     hosting:
-      - type: "self"
-        ip: "127.0.0.1"
-        port: 8163
-        protocol: "http"
-        deny-non-minecraft-request: true
-        one-time-token: true
-        rate-limit:
-          max-requests: 10
-          reset-interval: 30
+      - type: "s3"
+        region: "us-west-1"
+        endpoint: ""
+        protocol: "https"
+        bucket: "runemind-lobby"
+        path-style: false
+        access-key-id: "AKIAUXUWXIK6FFVIJNHQ"
+        secret-access-key: "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"
+        disable-calculate-sha256: false
+        validity: 10
+        rate-map:
+          max-requests: 5
+          reset-interval: 20 # seconds
+      # - type: "self"
+      #   ip: "127.0.0.1"
+      #   port: 8163
+      #   protocol: "http"
+      #   deny-non-minecraft-request: true
+      #   one-time-token: true
+      #   rate-limit:
+      #     max-requests: 10
+      #     reset-interval: 30
     # Upload the resource pack automatically on generation
     # When disabled, you must manually trigger uploads using the /ce upload command
-    auto-upload: true
+    auto-upload: false
     # The file to upload
     file-to-upload: "./generated/resource_pack.zip"
     # Resend the resource pack to players upon successful upload
