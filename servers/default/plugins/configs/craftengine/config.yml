@@ -92,7 +92,7 @@ resource-pack:
     hosting:
       - type: "s3"
         region: "us-west-1"
-        endpoint: ""
+        endpoint: "s3.us-west-1.amazonaws.com"
         protocol: "https"
         bucket: "runemind-lobby"
         path-style: false
