@@ -72,10 +72,6 @@ The following sets a tiny sized world border, that matches the `max-world-size=3
 /chunky trim world_name square 0.0 0.0 5000.0 5000.0 inside # delete the entire world in-game for re-generation (server/client restart required)
 ```
 
-## Terra
-
-First install, you must unzip the default pack into in the default folder.
-
 ## CraftEngine
 
 ```bash
