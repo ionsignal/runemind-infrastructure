@@ -26,6 +26,12 @@ addons:
   structure-block-shortcut: "1.+"
   terrascript-function-sampler: "1.+"
 
+vanilla:
+  mobs: false
+  structures: false
+  caves: false
+  decorations: false
+
 # ---
 # Biome distribution
 # ---

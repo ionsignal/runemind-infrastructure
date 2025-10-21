@@ -1,7 +1,7 @@
 id: LOBBY
 type: BIOME
 extends: [EQ_PLAIN, BASE]
-vanilla: minecraft:plains
+vanilla: minecraft:the_void
 color: $biomes/colors.yml:PLAINS
 
 tags:

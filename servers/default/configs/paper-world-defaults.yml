@@ -209,9 +209,9 @@ entities:
       water_ambient: -1
       water_creature: -1
     wandering-trader:
-      spawn-chance-failure-increment: 25
-      spawn-chance-max: 75
-      spawn-chance-min: 25
+      spawn-chance-failure-increment: 1
+      spawn-chance-max: 1
+      spawn-chance-min: 1
       spawn-day-length: 24000
       spawn-minute-length: 1200
     wateranimal-spawn-height:
