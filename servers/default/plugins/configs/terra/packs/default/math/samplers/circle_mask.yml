@@ -1,0 +1,16 @@
+# Defines samplers used for biome placement.
+samplers:
+  spawn-circle:
+    # Added the full namespace for the EXPRESSION sampler type.
+    type: config-noise-function:EXPRESSION
+    expression: 1 - 2 * (sqrt(x*x + z*z) < 35) # 1 - 2 * (max(abs(x), abs(z)) < 75)
+
+  spawn-rings:
+    type: config-noise-function:EXPRESSION
+    variables:
+      inner_radius: 35
+      outer_radius: 200
+    expression: >
+      if(sqrt(x*x + z*z) < inner_radius, -1,
+        if(sqrt(x*x + z*z) < outer_radius, 0, 1)
+      )

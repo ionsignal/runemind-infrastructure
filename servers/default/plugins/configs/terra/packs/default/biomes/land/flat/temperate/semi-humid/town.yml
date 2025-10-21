@@ -26,5 +26,8 @@ slant:
       - << meta.yml:palette-bottom
 
 features:
+  flora:
+    - GRASS
   trees:
+    - SPARSE_ACACIA_TREES
     - SPARSE_OAK_TREES

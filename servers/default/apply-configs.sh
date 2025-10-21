@@ -20,8 +20,11 @@ files_to_copy=(
     ["./plugins/configs/terra/packs/default/biome-providers/presets/single.yml"]="../../../server/plugins/Terra/packs/default/biome-providers/presets/single.yml"
     ["./plugins/configs/terra/packs/default/biomes/land/flat/temperate/semi-humid/lobby.yml"]="../../../server/plugins/Terra/packs/default/biomes/land/flat/temperate/semi-humid/lobby.yml"
     ["./plugins/configs/terra/packs/default/biomes/land/flat/temperate/semi-humid/town.yml"]="../../../server/plugins/Terra/packs/default/biomes/land/flat/temperate/semi-humid/town.yml"
+    ["./plugins/configs/terra/packs/default/biomes/land/mountains-large/polar/snowy_terraced_mountains.yml"]="../../../server/plugins/Terra/packs/default/biomes/land/flat/mountains-large/polar/snowy_terraced_mountains.yml"
     ["./plugins/configs/terra/packs/default/features/vegetation/trees/eucalyptus_trees.yml"]="../../../server/plugins/Terra/packs/default/features/vegetation/trees/eucalyptus_trees.yml"
-    ["./plugins/configs/terra/packs/default/math/samplers/square_mask.yml"]="../../../server/plugins/Terra/packs/default/math/samplers/square_mask.yml"
+    ["./plugins/configs/terra/packs/default/features/vegetation/bushes/mixed_bushes.yml"]="../../../server/plugins/Terra/packs/default/features/vegetation/bushes/mixed_bushes.yml"
+
+    ["./plugins/configs/terra/packs/default/math/samplers/circle_mask.yml"]="../../../server/plugins/Terra/packs/default/math/samplers/circle_mask.yml"
     ["./plugins/configs/huskclaims-config.yml"]="../../../server/plugins/HuskClaims/config.yml"
     ["./plugins/configs/huskhomes-config.yml"]="../../../server/plugins/HuskHomes/config.yml"
     ["./plugins/configs/craftengine/config.yml"]="../../../server/plugins/CraftEngine/config.yml"

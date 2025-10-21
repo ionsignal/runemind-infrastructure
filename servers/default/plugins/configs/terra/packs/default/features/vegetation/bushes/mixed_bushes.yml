@@ -1,5 +1,11 @@
-id: EUCALYPTUS_TREES
+id: MIXED_BUSHES
 type: FEATURE
+
+# distributor:
+#   type: SAMPLER
+#   sampler:
+#     type: POSITIVE_WHITE_NOISE
+#   threshold: 0.01
 
 distributor:
   type: AND
@@ -8,7 +14,7 @@ distributor:
     - type: PADDED_GRID
       width: 6 # The area within a grid cell where a tree can spawn.
       padding: 6 # The empty space around the width, ensuring no overlap.
-      salt: 2001
+      salt: 1991
 
     # Second, apply our density mask to the grid points.
     - type: SAMPLER
@@ -26,7 +32,7 @@ distributor:
           rand:
             dimensions: 2
             type: POSITIVE_WHITE_NOISE
-            salt: 2002 # A new, unique salt.
+            salt: 1992 # A new, unique salt.
 
           # The large-scale density map, output is [-1, 1].
           density:
@@ -41,8 +47,8 @@ locator:
   locators:
     - type: TOP
       range: &range
-        min: 64
-        max: 180
+        min: 62
+        max: 319
     - type: PATTERN
       range: *range
       pattern:
@@ -61,9 +67,6 @@ locator:
 structures:
   distribution:
     type: WHITE_NOISE
-    seed: 3666
   structures:
-    - oak_tree_procedural: 3
-    - large_oak_tree_procedural: 1
-    - large_oak_tree_procedural_2: 1
-    - eucalyptus_tree_procedural: 8
+    - oak_bush: 8
+    - spruce_bush: 5

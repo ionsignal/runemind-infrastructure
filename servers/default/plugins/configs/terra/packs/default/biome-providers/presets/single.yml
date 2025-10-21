@@ -14,21 +14,41 @@ biomes:
     # 1. The SOURCE defines the base biome layout.
     # A BiomeProvider is NOT a valid Source. We must use a SAMPLER source
     # configured with a CONSTANT sampler to achieve a single-biome base.
+    # source:
+    #   type: biome-provider-pipeline:SAMPLER
+    #   sampler:
+    #     type: config-noise-function:CONSTANT
+    #     value: 0 # This value doesn't matter when there's only one biome.
+    #   biomes:
+    #     - ROCKY_SEA_ARCHES: 1 # This creates a probability collection with only one item.
+
+    # 1. The SOURCE now defines a mix of biomes for the outer world.
     source:
       type: biome-provider-pipeline:SAMPLER
       sampler:
-        type: config-noise-function:CONSTANT
-        value: 0 # This value doesn't matter when there's only one biome.
+        # Use FBM noise for natural biome distribution.
+        type: config-noise-function:FBM
+        octaves: 2
+        sampler:
+          type: config-noise-function:OPEN_SIMPLEX_2
+          frequency: 1 / ${meta.yml:biome-distribution.temperature-scale} / ${meta.yml:biome-distribution.global-scale}
+          salt: 53
       biomes:
-        - LOBBY: 1 # This creates a probability collection with only one item.
+        # This is a ProbabilityCollection. The sampler's output maps to this list.
+        # You can add any biome here and adjust the weights.
+        - ROCKY_SEA_ARCHES: 1
+        - ROCKY_SEA_CAVES: 2
+        - SNOWY_TERRACED_MOUNTAINS: 3
 
     # 2. STAGES modify the biome layout from the source.
     stages:
       - type: biome-provider-pipeline:REPLACE
-        from: "BIOME:LOBBY"
+        from: "WILDERNESS_POOL"
         to:
-          # Sampler value < 0 maps to PLAINS (inside the square)
+          # Sampler value -1 maps to TOWN (inner circle)
           - TOWN: 1
-          # Sampler value >= 0 maps to SELF, keeping the LOBBY biome (outside the square)
+          # Sampler value 0 maps to WILDERNESS (middle ring)
+          - LOBBY: 1
+          # Sampler value 1 maps to SELF, keeping LOBBY (outer area)
           - SELF: 1
-        sampler: $math/samplers/square_mask.yml:samplers.spawn-square
+        sampler: $math/samplers/circle_mask.yml:samplers.spawn-rings
