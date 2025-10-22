@@ -6,9 +6,9 @@
 biomes:
   type: biome-provider-pipeline:PIPELINE
 
-  # Add these two lines for blending
-  blend.sampler: $math/samplers/simplex.yml:samplers.simplex
-  blend.amplitude: 15.0 # A value of 15 will shift the border by up to 15 blocks.
+  # # Add these two lines for blending
+  # blend.sampler: $math/samplers/simplex.yml:samplers.simplex
+  # blend.amplitude: 15.0 # A value of 15 will shift the border by up to 15 blocks.
 
   pipeline:
     # 1. The SOURCE defines the base biome layout.
@@ -51,4 +51,4 @@ biomes:
           - LOBBY: 1
           # Sampler value 1 maps to SELF, keeping LOBBY (outer area)
           - SELF: 1
-        sampler: $math/samplers/circle_mask.yml:samplers.spawn-rings
+        sampler: $math/samplers/circle_mask.yml:samplers.spawn-rings-gradient

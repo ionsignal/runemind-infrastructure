@@ -9,8 +9,46 @@ samplers:
     type: config-noise-function:EXPRESSION
     variables:
       inner_radius: 35
-      outer_radius: 200
+      outer_radius: 175
     expression: >
       if(sqrt(x*x + z*z) < inner_radius, -1,
         if(sqrt(x*x + z*z) < outer_radius, 0, 1)
       )
+
+  spawn-rings-gradient:
+    type: config-noise-function:EXPRESSION
+    variables:
+      # Define the center of each biome ring.
+      inner_radius: 35
+      outer_radius: 175
+
+      # Define the width of the blend zone on each side of the radius.
+      # A value of 10 means the blend will be 20 blocks wide.
+      inner_blend_width: 8
+      outer_blend_width: 25
+
+      # (Optional) Add noise for a more natural border.
+      # How many blocks the border can shift by.
+      inner_noise_amplitude: 8
+      outer_noise_amplitude: 75
+
+    expression: |
+      if(sqrt(x*x + z*z) + (blend_noise(x, z) * inner_noise_amplitude) < (inner_radius - inner_blend_width), -1,
+        if(sqrt(x*x + z*z) + (blend_noise(x, z) * inner_noise_amplitude) < (inner_radius + inner_blend_width), lerp(sqrt(x*x + z*z) + (blend_noise(x, z) * inner_noise_amplitude), inner_radius - inner_blend_width, -1, inner_radius + inner_blend_width, 0),
+          if(sqrt(x*x + z*z) + (blend_noise(x, z) * outer_noise_amplitude) < (outer_radius - outer_blend_width), 0,
+            if(sqrt(x*x + z*z) + (blend_noise(x, z) * outer_noise_amplitude) < (outer_radius + outer_blend_width), lerp(sqrt(x*x + z*z) + (blend_noise(x, z) * outer_noise_amplitude), outer_radius - outer_blend_width, 0, outer_radius + outer_blend_width, 1),
+              1
+            )
+          )
+        )
+      )
+    functions:
+      # Import the standard lerp function.
+      lerp: $math/functions/lerp.yml:functions.lerp
+    samplers:
+      # A simple noise sampler for making the borders less circular.
+      blend_noise:
+        dimensions: 2
+        type: config-noise-function:OPEN_SIMPLEX_2
+        frequency: 0.02
+        salt: 4812
