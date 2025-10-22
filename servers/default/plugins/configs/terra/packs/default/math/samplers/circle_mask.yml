@@ -19,12 +19,12 @@ samplers:
     type: config-noise-function:EXPRESSION
     variables:
       # Define the center of each biome ring.
-      inner_radius: 35
-      outer_radius: 175
+      inner_radius: 64
+      outer_radius: 384
 
       # Define the width of the blend zone on each side of the radius.
       # A value of 10 means the blend will be 20 blocks wide.
-      inner_blend_width: 8
+      inner_blend_width: 16
       outer_blend_width: 25
 
       # (Optional) Add noise for a more natural border.

@@ -1,12 +1,6 @@
 id: MIXED_BUSHES
 type: FEATURE
 
-# distributor:
-#   type: SAMPLER
-#   sampler:
-#     type: POSITIVE_WHITE_NOISE
-#   threshold: 0.01
-
 distributor:
   type: AND
   distributors:

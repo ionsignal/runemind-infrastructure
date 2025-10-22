@@ -13,9 +13,9 @@ tags:
 terrain:
   blend:
     # Default is 3. Let's increase this to 8 steps.
-    distance: 8
+    distance: 6
     # Default is 4. Let's also increase this to 8 blocks per step.
-    step: 8
+    step: 6
     # Default is 1. A slightly higher weight will make neighbors more influential.
     weight: 1.5
 
