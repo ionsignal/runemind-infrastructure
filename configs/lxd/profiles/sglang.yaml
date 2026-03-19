@@ -22,36 +22,6 @@ config:
   environment.XDG_CACHE_HOME: "/models/xdg"
   environment.SGLANG_CACHE_DIR: "/models/sglang"
 
-  # CLOUD-INIT: Zero-Touch Provisioning
-  user.user-data: |
-    #cloud-config
-    package_update: true
-    package_upgrade: true
-    packages:
-      - python3-pip
-      - python3-venv
-      - python3-dev
-      - build-essential
-      - git
-      - nvtop
-
-    runcmd:
-      # 1. Prepare the ZFS NVMe vault directories
-      - mkdir -p /models/huggingface /models/triton /models/xdg /models/sglang
-
-      # 2. Create the isolated Python Virtual Environment
-      - python3 -m venv /opt/sglang-env
-      - /opt/sglang-env/bin/pip install --upgrade pip
-      
-      # 3. Install PyTorch with cu124 (Brings user-space CUDA runtimes)
-      - /opt/sglang-env/bin/pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
-      
-      # 4. Install NVIDIA user-space compiler (nvcc) for JIT Triton kernels
-      - /opt/sglang-env/bin/pip install nvidia-cuda-nvcc-cu12 nvidia-cuda-runtime-cu12
-      
-      # 5. Install SGLang and Pre-compiled FlashInfer
-      - /opt/sglang-env/bin/pip install "sglang[all]" --find-links https://flashinfer.ai/whl/cu124/torch2.4
-
 devices:
   # Network Interface
   eth0:

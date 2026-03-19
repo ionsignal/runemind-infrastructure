@@ -1,0 +1,18 @@
+#cloud-config
+package_update: true
+package_upgrade: true
+packages:
+  - python3-pip
+  - python3-venv
+  - python3-dev
+  - build-essential
+  - git
+  - nvtop
+
+runcmd:
+  - mkdir -p /models/huggingface /models/triton /models/xdg /models/sglang
+  - python3 -m venv /opt/sglang-env
+  - /opt/sglang-env/bin/pip install --upgrade pip
+  - /opt/sglang-env/bin/pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
+  - /opt/sglang-env/bin/pip install nvidia-cuda-nvcc-cu12 nvidia-cuda-runtime-cu12
+  - /opt/sglang-env/bin/pip install "sglang[all]" --find-links https://flashinfer.ai/whl/cu124/torch2.4
