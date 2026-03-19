@@ -1,0 +1,6 @@
+name: is-nvme-pool
+description: "High-Performance ZFS NVMe Pool (AI & Games)"
+driver: zfs
+config:
+  source: is-nvme-pool
+  zfs.pool_name: is-nvme-pool

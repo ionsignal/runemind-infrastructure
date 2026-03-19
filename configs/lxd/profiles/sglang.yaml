@@ -1,0 +1,49 @@
+name: sglang
+description: "Unprivileged Qwen MoE AI Inference Engine"
+config:
+  # Security: Prevent IP/MAC spoofing (Zero-Trust baseline)
+  security.ipv4_filtering: "true"
+  security.mac_filtering: "true"
+  security.nesting: "false"
+  security.privileged: "false"
+
+  # Boot & Auto-start
+  boot.autostart: "true"
+  boot.autostart.priority: "100" # Start before game servers
+
+  # Resource Limits
+  limits.cpu: "16"
+  limits.memory: "64GB" # Protects host ZFS ARC and Minecraft heaps
+
+  # ZERO-WASTE CACHE REDIRECTION:
+  # Forces all AI tooling to write directly to the ZFS NVMe vault.
+  # Prevents the 250GB OS drive from filling up with temporary blobs.
+  environment.HF_HOME: "/models/huggingface"
+  environment.TRITON_CACHE_DIR: "/models/triton"
+  environment.XDG_CACHE_HOME: "/models/xdg"
+  environment.SGLANG_CACHE_DIR: "/models/sglang"
+
+devices:
+  # Network Interface (Modern syntax, Locked to Static IP)
+  eth0:
+    name: eth0
+    network: lxdbr0
+    type: nic
+    ipv4.address: 10.10.10.50
+
+  # Root Filesystem (Ephemeral OS drive)
+  root:
+    path: /
+    pool: default
+    type: disk
+
+  # ZFS Model Vault (Direct NVMe mount)
+  model-vault:
+    source: model-vault
+    pool: is-nvme-pool
+    path: /models
+    type: disk
+
+  # GPU Passthrough (Map all 4x RTX A4000s natively)
+  all-gpus:
+    type: gpu
