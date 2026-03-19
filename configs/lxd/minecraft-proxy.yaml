@@ -1,7 +1,0 @@
-description: "Resource profile for network proxies like Velocity or BungeeCord."
-config:
-  limits.cpu: "2"
-  limits.cpu.priority: "10"
-  limits.memory: "2GB"
-  limits.memory.swap: "false"
-  limits.disk.priority: "8"
