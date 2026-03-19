@@ -67,7 +67,7 @@ devices:
 
   # ZFS Model Vault (Direct NVMe mount)
   model-vault:
-    source: model-vault
+    source: is-model-vault
     pool: is-nvme-pool
     path: /models
     type: disk
