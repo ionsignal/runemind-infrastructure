@@ -780,7 +780,8 @@ To support current RTX A4000s and future-proof the host for bleeding-edge hardwa
 
 We utilize NVIDIA's modern compute-only packaging and explicitly pin the system to the **580 Production Branch**. This avoids known power-state and clock-throttling bugs in the volatile 590/595 feature branches, ensuring zero-latency token streaming for SGLang/vLLM. To maintain strict host hygiene in the DMZ, we **do not** install the CUDA Toolkit, Python, or PyTorch on the bare metal.
 
-**A. Add the Modern NVIDIA CUDA Keyring (v1.1)**
+#### **A. Add the Modern NVIDIA CUDA Keyring (v1.1)**
+
 This dynamically detects your OS version (Ubuntu 24.04) and adds the official NVIDIA repository to your `apt` sources.
 
 ```bash
@@ -795,7 +796,8 @@ sudo dpkg -i cuda-keyring_1.1-1_all.deb
 sudo apt update
 ```
 
-**B. Pin the Branch & Install Compute-Only Drivers**
+#### **B. Pin the Branch & Install Compute-Only Drivers**
+
 We lock `apt` to the 580 branch and install only the headless compute libraries and DKMS. DKMS (Dynamic Kernel Module Support) is mandatory; it ensures the proprietary NVIDIA kernel modules automatically rebuild if Ubuntu updates the host's kernel.
 
 ```bash
@@ -809,7 +811,8 @@ sudo apt install -y libnvidia-compute-580 nvidia-utils-580 nvidia-dkms-580
 sudo reboot
 ```
 
-**C. Post-Reboot Verification & Performance Tuning (The Source of Truth)**
+#### **C. Post-Reboot Verification & Performance Tuning (The Source of Truth)**
+
 Once the server is back online, verify the PCIe devices are initialized. We also enable Persistence Mode to prevent the GPUs from dropping into low-power P-States when idle, ensuring the AI engine can instantly respond to API requests.
 
 ```bash
@@ -825,3 +828,45 @@ sudo nvidia-smi -pm 1
 ```
 
 _(Note: The `CUDA Version` displayed in `nvidia-smi` is simply the maximum supported API version by the driver; it does not mean the toolkit is installed on the host)._
+
+#### **D. Install NVIDIA Container Toolkit (LXD Bridge)**
+
+While the host now possesses the kernel-space drivers, LXD requires the NVIDIA Container Toolkit to seamlessly bind-mount the user-space libraries (`libcuda.so`, `nvidia-smi`) into our unprivileged containers. This allows us to use the `nvidia.runtime: "true"` flag in our LXD profiles, completely avoiding version-mismatch dependency hell inside the container.
+
+```bash
+# Add the official NVIDIA Container Toolkit repository and GPG key
+curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg \
+  && curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list | \
+    sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
+    sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
+
+# Update apt and install the toolkit
+sudo apt update
+sudo apt install -y nvidia-container-toolkit
+
+# Restart the LXD snap daemon so it detects the toolkit binaries
+sudo systemctl restart snap.lxd.daemon
+```
+
+### **8. Execution: Launching the AI Engine**
+
+Create the 100GB custom volume for AI Engine:
+
+```bash
+lxc storage volume create is-nvme-pool is-model-vault
+lxc storage volume set is-nvme-pool is-model-vault size=100GiB
+```
+
+Launch the container using the Ubuntu 24.04 image and our IaC profile
+
+```bash
+lxc launch ubuntu:24.04 sglang --profile default --profile sglang
+
+# Verify it got the static IP (10.10.10.50) and the GPUs
+lxc list sglang
+
+# Drop into the container as root to begin the SGLang installation
+lxc exec sglang -- bash
+```
+
+## AA
