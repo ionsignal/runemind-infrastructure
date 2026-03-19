@@ -9,6 +9,9 @@ config:
   boot.autostart: "true"
   boot.autostart.priority: "100" # Start before game servers
 
+  # Nvidia Runtime
+  nvidia.runtime: "true"
+
   # Resource Limits (Protects the host OS and ZFS ARC)
   limits.cpu: "16"
   limits.memory: "64GB"
