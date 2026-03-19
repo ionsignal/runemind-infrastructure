@@ -89,40 +89,73 @@ sudo systemctl restart ssh
 
 ### **4. Zero-Trust Firewall (UFW)**
 
-Implement strict inbound routing and outbound fencing to prevent lateral movement from the DMZ. Apply the following rules to achieve the baseline state:
+Implement strict inbound routing and outbound fencing to prevent lateral movement from the DMZ.
+
+Run the following rules as a script to achieve the baseline state:
 
 ```bash
-# Default Policies
+# This ensures we don't have lingering, conflicting rules.
+sudo ufw --force reset
+
+# 2. SET DEFAULT POLICIES
 sudo ufw default deny incoming
 sudo ufw default allow outgoing
+sudo ufw default deny routed
 
-# Outbound Fencing (Allow local gateway, block all other private subnets)
-sudo ufw allow out to 172.20.2.0/24 comment 'Allow local DMZ subnet & Gateway'
+# ==========================================
+# 3. HOST OUTBOUND (The OUTPUT Chain)
+# ==========================================
+
+# Priority Allows: Written first so they naturally become Rule 1 and Rule 2
+sudo ufw allow out to 10.10.10.0/24 comment 'Priority: Allow Host to LXD subnet'
+sudo ufw allow out to 172.20.2.0/24 comment 'Priority: Allow local DMZ subnet & Gateway'
+
+# Block host from reaching any other internal networks (Zero-Trust)
 sudo ufw deny out to 172.16.0.0/12 comment 'Block outbound to Internal 172.x'
 sudo ufw deny out to 10.0.0.0/8 comment 'Block outbound to Internal 10.x'
 sudo ufw deny out to 192.168.0.0/16 comment 'Block outbound to Internal 192.168.x'
 
-# Inbound Access (Admin, Game Traffic, Local AI API)
-sudo ufw allow from 172.20.1.0/24 to any port 22 proto tcp comment 'Allow SSH Management Subnet'
+# ==========================================
+# 4. HOST INBOUND (The INPUT Chain)
+# ==========================================
+
+# SSH (Port 22) - Management, AWS Bastion, and Home Laptop
+sudo ufw allow from 172.20.1.0/24 to any port 22 proto tcp comment 'Allow SSH Management'
+sudo ufw allow from 13.52.160.148 to any port 22 proto tcp comment 'Allow SSH AWS Bastion'
 sudo ufw allow from 172.20.3.158 to any port 22 proto tcp comment 'Allow SSH Home Laptop'
-sudo ufw allow from 127.0.0.1 to any port 8080 proto tcp comment 'Allow SGLANG API Local'
 
-# Allow outbound NAT (Internet Access) for LXD containers via the bond
-sudo ufw route allow in on lxdbr0 out on bond0 comment 'Allow LXD Outbound NAT'
-
-# Allow inbound port-forwarded traffic strictly to the Velocity Proxy port (25565)
-sudo ufw route allow in on bond0 out on lxdbr0 to any port 25565 proto tcp comment 'Allow Inbound Velocity Proxy'
-
-# HTTPS only from trusted subnets
+# HTTPS (Port 443) - Caddy / LXD UI Access
 sudo ufw allow from 172.20.1.0/24 to any port 443 proto tcp comment 'Allow HTTPS Management'
 sudo ufw allow from 172.20.3.0/24 to any port 443 proto tcp comment 'Allow HTTPS Home'
 
-# Enable and Verify
-sudo ufw enable
-sudo ufw status numbered
+# Explicitly allow DHCP (UDP 67) from containers to the host
+sudo ufw allow in on lxdbr0 to any port 67 proto udp comment 'LXD DHCP'
 
-# Reload to apply forwarding changes
+# Explicitly allow DNS (TCP/UDP 53) from containers to the host
+sudo ufw allow in on lxdbr0 to any port 53 proto udp comment 'LXD DNS UDP'
+sudo ufw allow in on lxdbr0 to any port 53 proto tcp comment 'LXD DNS TCP'
+
+# ==========================================
+# 5. ROUTED TRAFFIC (The FORWARD Chain)
+# ==========================================
+
+# Fencing: Prevent compromised containers from scanning internal networks
+sudo ufw route deny in on lxdbr0 out on bond0 to 172.16.0.0/12 comment 'Block LXD outbound to Internal 172.x'
+sudo ufw route deny in on lxdbr0 out on bond0 to 10.0.0.0/8 comment 'Block LXD outbound to Internal 10.x'
+sudo ufw route deny in on lxdbr0 out on bond0 to 192.168.0.0/16 comment 'Block LXD outbound to Internal 192.168.x'
+
+# Internet Access: Allow containers to reach the public internet
+sudo ufw route allow in on lxdbr0 out on bond0 comment 'Allow LXD Outbound Internet'
+
+# Game Ingress: Allow external traffic forwarded by the EFG to strictly hit Velocity IP
+sudo ufw route allow in on bond0 out on lxdbr0 to 10.10.10.2 port 25565 proto tcp comment 'Strict Inbound Velocity'
+
+# ==========================================
+# 6. ENABLE AND APPLY
+# ==========================================
+sudo ufw enable
 sudo ufw reload
+sudo ufw status numbered
 ```
 
 ### **5. High-Performance ZFS Storage Provisioning (NVMe)**
@@ -860,7 +893,16 @@ lxc storage volume set is-nvme-pool is-model-vault size=100GiB
 Launch the container using the Ubuntu 24.04 image and our IaC profile
 
 ```bash
+# TODO: clean this up:
+lxc profile edit sglang < ./configs/lxd/profiles/sglang.yaml
+lxc profile set sglang user.user-data - < ./configs/lxd/init/sglang.yaml
+## TODO: cleanup
+
+# Launch the container
 lxc launch ubuntu:24.04 sglang --profile default --profile sglang
+
+# Watch the automated installation in real-time
+lxc exec sglang -- tail -f /var/log/cloud-init-output.log
 
 # Verify it got the static IP (10.10.10.50) and the GPUs
 lxc list sglang
