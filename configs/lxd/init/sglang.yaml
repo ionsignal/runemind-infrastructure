@@ -10,9 +10,18 @@ packages:
   - nvtop
 
 runcmd:
+  # Prepare the ZFS NVMe vault directories
   - mkdir -p /models/huggingface /models/triton /models/xdg /models/sglang
+
+  # Create the isolated Python Virtual Environment
   - python3 -m venv /opt/sglang-env
   - /opt/sglang-env/bin/pip install --upgrade pip
-  - /opt/sglang-env/bin/pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
+
+  # Install PyTorch 2.4.0 explicitly to match the FlashInfer wheels
+  - /opt/sglang-env/bin/pip install torch==2.4.0 torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
+
+  # Install NVIDIA user-space compiler (nvcc) for JIT Triton kernels
   - /opt/sglang-env/bin/pip install nvidia-cuda-nvcc-cu12 nvidia-cuda-runtime-cu12
-  - /opt/sglang-env/bin/pip install "sglang[all]" --find-links https://flashinfer.ai/whl/cu124/torch2.4
+
+  # Install SGLang and Pre-compiled FlashInfer (Note the trailing /flashinfer/ in the URL)
+  - /opt/sglang-env/bin/pip install "sglang[all]" --find-links https://flashinfer.ai/whl/cu124/torch2.4/flashinfer/
