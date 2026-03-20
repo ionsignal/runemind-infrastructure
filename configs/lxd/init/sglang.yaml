@@ -8,64 +8,69 @@ packages:
   - build-essential
   - git
   - nvtop
+  - wget
 
 # User Provisioning
 users:
   - name: sglang
     system: true
-    shell: /usr/sbin/nologin
+    shell: /bin/bash
     homedir: /opt/sglang
     groups: [video, render]
 
 # File Provisioning
 write_files:
-  # Environment
+  # Environment Variables
   - path: /etc/default/sglang
     owner: root:root
     permissions: "0640"
     content: |
+      PATH=/opt/sglang/venv/bin:/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+      VIRTUAL_ENV=/opt/sglang/venv
       HF_HOME=/models/huggingface
       TRITON_CACHE_DIR=/models/triton
       XDG_CACHE_HOME=/models/xdg
       SGLANG_CACHE_DIR=/models/sglang
-      CUDA_HOME=/opt/sglang/venv
-  # The Shell Bridge
+      CUDA_HOME=/usr/local/cuda
+
+  # The Shell Bridge (Sources the variables for interactive SSH logins)
   - path: /etc/profile.d/sglang.sh
     owner: root:root
     permissions: "0644"
     content: |
-      # Automatically export AI Vault variables for interactive troubleshooting
       set -a
       source /etc/default/sglang 2>/dev/null
       set +a
 
 # Command Execution
 runcmd:
+  # Inject Official NVIDIA Repository
+  - wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-keyring_1.1-1_all.deb
+  - dpkg -i cuda-keyring_1.1-1_all.deb
+  - apt-get update
+
+  # Install CUDA Toolkit 12.8 & Ninja (Generates /usr/local/cuda symlink natively)
+  - apt-get install -y --no-install-recommends cuda-toolkit-12-8 ninja-build
+
   # Secure the environment file now that the 'sglang' user exists
   - chown root:sglang /etc/default/sglang
 
   # Prepare the persistent ZFS NVMe vault sub-directories
   - mkdir -p /models/huggingface /models/triton /models/xdg /models/sglang
+  - chown -R sglang:sglang /models/huggingface /models/triton /models/xdg /models/sglang
 
-  # Grant the service account ownership of the persistent ZFS directories
-  - chown sglang:sglang /models/huggingface /models/triton /models/xdg /models/sglang
-
-  # Explicitly create the home directory for the system user
+  # Explicitly create the home directory and secure it
   - mkdir -p /opt/sglang
-
-  # Inject Ubuntu Skeleton files for colored interactive shells
   - cp /etc/skel/.bashrc /etc/skel/.profile /etc/skel/.bash_logout /opt/sglang/
   - sed -i 's/#force_color_prompt=yes/force_color_prompt=yes/g' /opt/sglang/.bashrc
-
-  # Secure the local application launchpad
   - chown -R sglang:sglang /opt/sglang
   - chmod 700 /opt/sglang
 
   # Create the isolated Python Virtual Environment as the unprivileged user
   - sudo -u sglang python3 -m venv /opt/sglang/venv
 
-  # Upgrade pip inside the virtual environment
-  - sudo -u sglang /opt/sglang/venv/bin/pip install --upgrade pip
+  # Install UV (Explicitly sourcing the activate script to satisfy UV's context engine)
+  - sudo -u sglang bash -c 'source /opt/sglang/venv/bin/activate && source /etc/default/sglang && pip install uv'
 
-  # Install Nvidia user-space compiler (nvcc) for JIT Triton kernels
-  - sudo -u sglang /opt/sglang/venv/bin/pip install --no-cache-dir nvidia-cuda-nvcc-cu12 nvidia-cuda-runtime-cu12
+  # Install SGLang and strictly pin CUDA runtime to <12.9
+  - sudo -u sglang bash -c 'source /opt/sglang/venv/bin/activate && source /etc/default/sglang && uv pip install sglang "nvidia-cuda-runtime-cu12<12.9" "nvidia-cublas-cu12<12.9"'
