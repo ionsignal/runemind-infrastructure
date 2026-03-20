@@ -1,5 +1,5 @@
 name: sglang
-description: "Unprivileged Qwen MoE AI Inference Engine (SGLang/vLLM)"
+description: "Unprivileged Qwen MoE AI Inference Engine (SGLang)"
 config:
   # Container Security Baseline
   security.nesting: "false"
