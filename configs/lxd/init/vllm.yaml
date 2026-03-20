@@ -41,7 +41,15 @@ write_files:
 runcmd:
   - chown root:vllm /etc/default/vllm
 
-  # Ensure vault permissions align with the new privileged container UID mapping (Root = Root)
+  # Inject Official NVIDIA Repository & Install CUDA Toolkit / Ninja
+  - wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-keyring_1.1-1_all.deb
+  - dpkg -i cuda-keyring_1.1-1_all.deb
+  - apt-get update
+
+  # Install CUDA Toolkit 12.8 & Ninja (Generates /usr/local/cuda symlink natively)
+  - apt-get install -y --no-install-recommends cuda-toolkit-12-8 ninja-build
+
+  # Ensure vault permissions align with the unprivileged container UID mapping
   - mkdir -p /models/huggingface /models/vllm
   - chown -R vllm:vllm /models
 

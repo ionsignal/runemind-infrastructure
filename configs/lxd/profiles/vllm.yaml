@@ -1,5 +1,5 @@
 name: vllm
-description: "High-Performance Privileged vLLM Engine"
+description: "High-Performance Unprivileged vLLM Engine"
 config:
   # Container Security Baseline (Must be unprivileged for nvidia.runtime)
   security.nesting: "true"
