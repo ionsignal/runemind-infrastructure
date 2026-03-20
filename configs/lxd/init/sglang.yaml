@@ -10,18 +10,25 @@ packages:
   - nvtop
 
 runcmd:
-  # Prepare the ZFS NVMe vault directories
+  # Create the dedicated service account
+  - useradd --system --user-group --home-dir /opt/sglang --create-home --shell /usr/sbin/nologin sglang
+  - usermod -aG video,render sglang
+
+  # Prepare the persistent ZFS NVMe vault sub-directories
   - mkdir -p /models/huggingface /models/triton /models/xdg /models/sglang
 
+  # Chown the specific directories this container writes to.
+  - chown sglang:sglang /models/huggingface /models/triton /models/xdg /models/sglang
+
+  # Secure the launchpad locally to this container
+  - chown -R sglang:sglang /opt/sglang
+  - chmod 700 /opt/sglang
+
   # Create the isolated Python Virtual Environment
-  - python3 -m venv /opt/sglang-env
-  - /opt/sglang-env/bin/pip install --upgrade pip
+  - sudo -u sglang python3 -m venv /opt/sglang/venv
 
-  # Install PyTorch 2.4.0 explicitly to match the FlashInfer wheels
-  - /opt/sglang-env/bin/pip install --no-cache-dir torch==2.4.0 torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
+  # Create the isolated Python Virtual Environment
+  - sudo -u sglang /opt/sglang/venv/bin/pip install --upgrade pip
 
-  # Install NVIDIA user-space compiler (nvcc) for JIT Triton kernels
-  - /opt/sglang-env/bin/pip install --no-cache-dir nvidia-cuda-nvcc-cu12 nvidia-cuda-runtime-cu12
-
-  # Install SGLang, and pin torch to prevent the resolver from upgrading it
-  - /opt/sglang-env/bin/pip install --no-cache-dir "sglang[srt]" "torch==2.4.0" --find-links https://flashinfer.ai/whl/cu124/torch2.4/flashinfer/
+  # Install Nvidia user-space compiler (nvcc) for JIT Triton kernels
+  - sudo -u sglang /opt/sglang/venv/bin/pip install --no-cache-dir nvidia-cuda-nvcc-cu12 nvidia-cuda-runtime-cu12
