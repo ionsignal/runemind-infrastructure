@@ -9,6 +9,27 @@ packages:
   - git
   - nvtop
 
+write_files:
+  # Environment
+  - path: /etc/default/sglang
+    owner: root:sglang
+    permissions: "0640"
+    content: |
+      HF_HOME=/models/huggingface
+      TRITON_CACHE_DIR=/models/triton
+      XDG_CACHE_HOME=/models/xdg
+      SGLANG_CACHE_DIR=/models/sglang
+      CUDA_HOME=/opt/sglang/venv
+  # The Shell Bridge
+  - path: /etc/profile.d/sglang.sh
+    owner: root:root
+    permissions: "0644"
+    content: |
+      # Automatically export AI Vault variables for interactive troubleshooting
+      set -a
+      source /etc/default/sglang 2>/dev/null
+      set +a
+
 runcmd:
   # Create the dedicated service account (No shell access for security)
   - useradd --system --user-group --home-dir /opt/sglang --create-home --shell /usr/sbin/nologin sglang

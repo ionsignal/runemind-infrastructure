@@ -13,14 +13,8 @@ config:
   nvidia.runtime: "true"
 
   # Resource Limits (Protects the host OS and ZFS ARC)
-  limits.cpu: "16"
+  limits.cpu: "8"
   limits.memory: "64GB"
-
-  # ZERO-WASTE CACHE REDIRECTION:
-  environment.HF_HOME: "/models/huggingface"
-  environment.TRITON_CACHE_DIR: "/models/triton"
-  environment.XDG_CACHE_HOME: "/models/xdg"
-  environment.SGLANG_CACHE_DIR: "/models/sglang"
 
 devices:
   # Network Interface
