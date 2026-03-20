@@ -10,24 +10,26 @@ packages:
   - nvtop
 
 runcmd:
-  # Create the dedicated service account
+  # Create the dedicated service account (No shell access for security)
   - useradd --system --user-group --home-dir /opt/sglang --create-home --shell /usr/sbin/nologin sglang
+
+  # Grant the service account access to the passed-through Nvidia GPUs
   - usermod -aG video,render sglang
 
   # Prepare the persistent ZFS NVMe vault sub-directories
   - mkdir -p /models/huggingface /models/triton /models/xdg /models/sglang
 
-  # Chown the specific directories this container writes to.
+  # Grant the service account ownership of the persistent ZFS directories
   - chown sglang:sglang /models/huggingface /models/triton /models/xdg /models/sglang
 
-  # Secure the launchpad locally to this container
+  # Secure the local application launchpad
   - chown -R sglang:sglang /opt/sglang
   - chmod 700 /opt/sglang
 
-  # Create the isolated Python Virtual Environment
+  # Create the isolated Python Virtual Environment as the unprivileged user
   - sudo -u sglang python3 -m venv /opt/sglang/venv
 
-  # Create the isolated Python Virtual Environment
+  # Upgrade pip inside the virtual environment
   - sudo -u sglang /opt/sglang/venv/bin/pip install --upgrade pip
 
   # Install Nvidia user-space compiler (nvcc) for JIT Triton kernels
