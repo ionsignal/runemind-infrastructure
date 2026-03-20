@@ -53,6 +53,10 @@ runcmd:
   # Explicitly create the home directory for the system user
   - mkdir -p /opt/sglang
 
+  # Inject Ubuntu Skeleton files for colored interactive shells
+  - cp /etc/skel/.bashrc /etc/skel/.profile /etc/skel/.bash_logout /opt/sglang/
+  - sed -i 's/#force_color_prompt=yes/force_color_prompt=yes/g' /opt/sglang/.bashrc
+
   # Secure the local application launchpad
   - chown -R sglang:sglang /opt/sglang
   - chmod 700 /opt/sglang
@@ -65,8 +69,3 @@ runcmd:
 
   # Install Nvidia user-space compiler (nvcc) for JIT Triton kernels
   - sudo -u sglang /opt/sglang/venv/bin/pip install --no-cache-dir nvidia-cuda-nvcc-cu12 nvidia-cuda-runtime-cu12
-
-    # Inject Ubuntu Skeleton files for colored interactive shells
-  - cp /etc/skel/.bashrc /etc/skel/.profile /etc/skel/.bash_logout /opt/sglang/
-  - sed -i 's/#force_color_prompt=yes/force_color_prompt=yes/g' /opt/sglang/.bashrc
-  - chown sglang:sglang /opt/sglang/.bashrc /opt/sglang/.profile /opt/sglang/.bash_logout
