@@ -1,9 +1,9 @@
 name: vllm
 description: "High-Performance Privileged vLLM Engine"
 config:
-  # Security Escalation (Mandatory for PCIe P2P DMA & NCCL)
-  security.nesting: "false"
-  security.privileged: "true"
+  # Container Security Baseline (Must be unprivileged for nvidia.runtime)
+  security.nesting: "true"
+  security.privileged: "false"
 
   # Boot & Auto-start
   boot.autostart: "true"
