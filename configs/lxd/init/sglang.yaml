@@ -9,10 +9,19 @@ packages:
   - git
   - nvtop
 
+# User Provisioning
+users:
+  - name: sglang
+    system: true
+    shell: /usr/sbin/nologin
+    homedir: /opt/sglang
+    groups: [video, render]
+
+# File Provisioning
 write_files:
   # Environment
   - path: /etc/default/sglang
-    owner: root:sglang
+    owner: root:root
     permissions: "0640"
     content: |
       HF_HOME=/models/huggingface
@@ -30,12 +39,10 @@ write_files:
       source /etc/default/sglang 2>/dev/null
       set +a
 
+# Command Execution
 runcmd:
-  # Create the dedicated service account (No shell access for security)
-  - useradd --system --user-group --home-dir /opt/sglang --create-home --shell /usr/sbin/nologin sglang
-
-  # Grant the service account access to the passed-through Nvidia GPUs
-  - usermod -aG video,render sglang
+  # Secure the environment file now that the 'sglang' user exists
+  - chown root:sglang /etc/default/sglang
 
   # Prepare the persistent ZFS NVMe vault sub-directories
   - mkdir -p /models/huggingface /models/triton /models/xdg /models/sglang
