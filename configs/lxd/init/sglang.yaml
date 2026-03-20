@@ -24,4 +24,4 @@ runcmd:
   - /opt/sglang-env/bin/pip install --no-cache-dir nvidia-cuda-nvcc-cu12 nvidia-cuda-runtime-cu12
 
   # Install SGLang, and pin torch to prevent the resolver from upgrading it
-  - /opt/sglang-env/bin/pip install --no-cache-dir "sglang[all]" "torch==2.4.0" --find-links https://flashinfer.ai/whl/cu124/torch2.4/flashinfer/
+  - /opt/sglang-env/bin/pip install --no-cache-dir "sglang[srt]" "torch==2.4.0" --find-links https://flashinfer.ai/whl/cu124/torch2.4/flashinfer/
