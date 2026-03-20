@@ -50,6 +50,9 @@ runcmd:
   # Grant the service account ownership of the persistent ZFS directories
   - chown sglang:sglang /models/huggingface /models/triton /models/xdg /models/sglang
 
+  # Explicitly create the home directory for the system user
+  - mkdir -p /opt/sglang
+
   # Secure the local application launchpad
   - chown -R sglang:sglang /opt/sglang
   - chmod 700 /opt/sglang
