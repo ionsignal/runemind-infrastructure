@@ -18,10 +18,10 @@ runcmd:
   - /opt/sglang-env/bin/pip install --upgrade pip
 
   # Install PyTorch 2.4.0 explicitly to match the FlashInfer wheels
-  - /opt/sglang-env/bin/pip install torch==2.4.0 torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
+  - /opt/sglang-env/bin/pip install --no-cache-dir torch==2.4.0 torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
 
   # Install NVIDIA user-space compiler (nvcc) for JIT Triton kernels
-  - /opt/sglang-env/bin/pip install nvidia-cuda-nvcc-cu12 nvidia-cuda-runtime-cu12
+  - /opt/sglang-env/bin/pip install --no-cache-dir nvidia-cuda-nvcc-cu12 nvidia-cuda-runtime-cu12
 
-  # Install SGLang and Pre-compiled FlashInfer (Note the trailing /flashinfer/ in the URL)
-  - /opt/sglang-env/bin/pip install "sglang[all]" --find-links https://flashinfer.ai/whl/cu124/torch2.4/flashinfer/
+  # Install SGLang, and pin torch to prevent the resolver from upgrading it
+  - /opt/sglang-env/bin/pip install --no-cache-dir "sglang[all]" "torch==2.4.0" --find-links https://flashinfer.ai/whl/cu124/torch2.4/flashinfer/
