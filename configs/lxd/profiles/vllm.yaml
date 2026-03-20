@@ -12,10 +12,8 @@ config:
   # Nvidia Runtime Bridge
   nvidia.runtime: "true"
 
-  # IPC Tuning: Allow unlimited memory locking for NCCL Shared Memory
-  raw.lxc: |-
-    lxc.prlimit.memlock = unlimited
-    lxc.cgroup2.memory.max = max
+  # Native LXD kernel limit for NCCL Shared Memory
+  limits.kernel.memlock: unlimited
 
 devices:
   # Network Interface
