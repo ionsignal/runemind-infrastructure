@@ -1,0 +1,58 @@
+#cloud-config
+package_update: true
+package_upgrade: true
+packages:
+  - python3-pip
+  - python3-venv
+  - python3-dev
+  - build-essential
+  - git
+  - nvtop
+
+users:
+  - name: vllm
+    system: true
+    shell: /bin/bash
+    homedir: /opt/vllm
+    groups: [video, render]
+
+write_files:
+  - path: /etc/default/vllm
+    owner: root:root
+    permissions: "0640"
+    content: |
+      PATH=/opt/vllm/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+      VIRTUAL_ENV=/opt/vllm/venv
+      HF_HOME=/models/huggingface
+      VLLM_CACHE_ROOT=/models/vllm
+      # Crucial PyTorch memory fragmentation mitigation (Prevents OOM during CUDA Graph Capture)
+      PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+      # Force NCCL to output debug info so we can verify PCIe P2P is active
+      NCCL_DEBUG=INFO
+
+  - path: /etc/profile.d/vllm.sh
+    owner: root:root
+    permissions: "0644"
+    content: |
+      set -a
+      source /etc/default/vllm 2>/dev/null
+      set +a
+
+runcmd:
+  - chown root:vllm /etc/default/vllm
+
+  # Ensure vault permissions align with the new privileged container UID mapping (Root = Root)
+  - mkdir -p /models/huggingface /models/vllm
+  - chown -R vllm:vllm /models
+
+  # Setup home directory
+  - mkdir -p /opt/vllm
+  - cp /etc/skel/.bashrc /etc/skel/.profile /etc/skel/.bash_logout /opt/vllm/
+  - sed -i 's/#force_color_prompt=yes/force_color_prompt=yes/g' /opt/vllm/.bashrc
+  - chown -R vllm:vllm /opt/vllm
+  - chmod 700 /opt/vllm
+
+  # Build the environment and install vLLM
+  - sudo -u vllm python3 -m venv /opt/vllm/venv
+  - sudo -u vllm bash -c 'source /opt/vllm/venv/bin/activate && pip install uv'
+  - sudo -u vllm bash -c 'source /opt/vllm/venv/bin/activate && uv pip install vllm ray'
