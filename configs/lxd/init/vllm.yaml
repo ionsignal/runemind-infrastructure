@@ -21,14 +21,28 @@ write_files:
     owner: root:root
     permissions: "0640"
     content: |
-      PATH=/opt/vllm/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+      PATH=/opt/vllm/venv/bin:/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
       VIRTUAL_ENV=/opt/vllm/venv
       HF_HOME=/models/huggingface
-      VLLM_CACHE_ROOT=/models/vllm
-      # Crucial PyTorch memory fragmentation mitigation (Prevents OOM during CUDA Graph Capture)
       PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
-      # Force NCCL to output debug info so we can verify PCIe P2P is active
-      NCCL_DEBUG=INFO
+      NCCL_DEBUG=TRACE
+      NCCL_DEBUG_SUBSYS=INIT,ENV,GRAPH,NET
+      NCCL_DEBUG_FILE=/opt/vllm/nccl_debug_%h_%p.log
+      VLLM_CACHE_ROOT=/models/vllm
+      VLLM_ATTENTION_BACKEND=FLASHINFER
+      VLLM_MARLIN_USE_ATOMIC_ADD=1
+      VLLM_ARGS="--model Qwen/Qwen3.5-35B-A3B-FP8 \
+        --host 0.0.0.0 \
+        --port 8080 \
+        --tensor-parallel-size 4 \
+        --gpu-memory-utilization 0.80 \
+        --max-model-len 2048 \
+        --max-num-seqs 64 \
+        --enable-chunked-prefill \
+        --max-num-batched-tokens 8192 \
+        --enable-prefix-caching \
+        --trust-remote-code \
+        --reasoning-parser qwen3"
 
   - path: /etc/profile.d/vllm.sh
     owner: root:root
@@ -62,5 +76,5 @@ runcmd:
 
   # Build the environment and install vLLM
   - sudo -u vllm python3 -m venv /opt/vllm/venv
-  - sudo -u vllm bash -c 'source /opt/vllm/venv/bin/activate && pip install uv'
-  - sudo -u vllm bash -c 'source /opt/vllm/venv/bin/activate && uv pip install vllm ray'
+  - sudo -u vllm bash -c 'source /opt/vllm/venv/bin/activate && source /etc/default/vllm && pip install uv'
+  - sudo -u vllm bash -c 'source /opt/vllm/venv/bin/activate && source /etc/default/vllm && uv pip install vllm==0.17.1 ray'
