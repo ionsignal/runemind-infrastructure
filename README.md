@@ -953,9 +953,9 @@ lxc exec vllm -- nvidia-smi
 
 #### **8.5. Systemd Service Deployment**
 
-Once `cloud-init` finishes compiling the environment, we must wrap the optimized vLLM launch command into a robust `systemd` service inside the container.
+Once `cloud-init` finishes compiling the environment, we wrap the vLLM engine into a robust `systemd` service.
 
-To maintain total decoupling and allow rapid benchmarking without systemd daemon reloads, the service relies entirely on `/etc/default/vllm` as its absolute source of truth. All environment variables, CUDA paths, and execution arguments (`$VLLM_ARGS`) are sourced strictly from this file.
+To adhere to Enterprise Infrastructure-as-Code principles, we utilize **Total Decoupling**. The systemd unit file contains zero execution logic. All parameters, paths, and launch arguments (`VLLM_ARGS`) are strictly inherited from the `/etc/default/vllm` environment file provisioned by `cloud-init`. This allows us to rapidly tune model parameters without reloading systemd daemons, and forces systemd to "fail loudly" if the configuration file is missing.
 
 ```bash
 # Drop into the container shell
