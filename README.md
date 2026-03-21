@@ -135,6 +135,9 @@ sudo ufw allow in on lxdbr0 to any port 67 proto udp comment 'LXD DHCP'
 sudo ufw allow in on lxdbr0 to any port 53 proto udp comment 'LXD DNS UDP'
 sudo ufw allow in on lxdbr0 to any port 53 proto tcp comment 'LXD DNS TCP'
 
+# Game Ingress (LXD Proxy Device Architecture)
+sudo ufw allow in on bond0 to any port 25565 proto tcp comment 'Allow Inbound Velocity Proxy'
+
 # ==========================================
 # 5. ROUTED TRAFFIC (The FORWARD Chain)
 # ==========================================
@@ -146,9 +149,6 @@ sudo ufw route deny in on lxdbr0 out on bond0 to 192.168.0.0/16 comment 'Block L
 
 # Internet Access: Allow containers to reach the public internet
 sudo ufw route allow in on lxdbr0 out on bond0 comment 'Allow LXD Outbound Internet'
-
-# Game Ingress: Allow external traffic forwarded by the EFG to strictly hit Velocity IP
-sudo ufw route allow in on bond0 out on lxdbr0 to 10.10.10.2 port 25565 proto tcp comment 'Strict Inbound Velocity'
 
 # ==========================================
 # 6. ENABLE AND APPLY
@@ -881,34 +881,123 @@ sudo apt install -y nvidia-container-toolkit
 sudo systemctl restart snap.lxd.daemon
 ```
 
-### **8. Execution: Launching the AI Engine**
+### **8. Execution: Launching the AI Engine (vLLM)**
 
-Create the 100GB custom volume for AI Engine:
+_Objective: Deploy the Qwen ~35B MoE LLM using vLLM to bypass hardware FP8 instruction limitations on Ampere GPUs (via the Marlin kernel). To achieve maximum bare-metal throughput (80-90+ t/s) and prevent NCCL from falling back to the TCP loopback interface, we must systematically dismantle host-level IPC barriers, provision dedicated NVMe storage, and securely escalate the container's PCIe privileges._
+
+#### **8.1. Host-Level IPC Unlocking (YAMA Policy)**
+
+By default, Ubuntu's YAMA security module prevents cross-process memory attachment (CMA). NVIDIA's NCCL library relies heavily on CMA for Shared Memory (SHM) synchronization when coordinating tensor parallelism across multiple GPUs. We must relax this policy on the bare-metal host before launching the container.
 
 ```bash
+# Temporarily relax YAMA to allow cross-process memory attachment for NCCL
+sudo sysctl -w kernel.yama.ptrace_scope=0
+
+# Make the relaxation persistent across host reboots
+echo "kernel.yama.ptrace_scope=0" | sudo tee /etc/sysctl.d/10-ptrace.conf
+
+# Apply system changes
+sudo sysctl --system
+```
+
+#### **8.2. Decoupled AI Storage Vault**
+
+Create a dedicated 100GB custom volume on the high-performance ZFS NVMe pool. This isolates the massive HuggingFace/vLLM model weight caches from the ephemeral container OS.
+
+```bash
+# Verify pool capacity before provisioning
+zfs list is-nvme-pool
+
+# Provision the dedicated model vault
 lxc storage volume create is-nvme-pool is-model-vault
 lxc storage volume set is-nvme-pool is-model-vault size=100GiB
 ```
 
-Launch the container using the Ubuntu 24.04 image and our IaC profile
+#### **8.3. Declarative Profile Escalation**
+
+To allow the 4x RTX A4000s to communicate directly over the PCIe bus (bypassing the CPU entirely), the container requires `CAP_SYS_ADMIN` and raw LXC limits for `unlimited` memory locking. We apply these via our declarative Infrastructure-as-Code (IaC) YAML profiles.
+
+> **Security Note:** This configuration escalates the container to `security.privileged: "true"`. While this breaks our strict unprivileged rule for the DMZ, this container sits behind the Caddy API gateway, has no inbound internet access (enforced by host UFW), and is dedicated solely to the AI engine. This is an accepted risk required to unlock bare-metal PCIe P2P DMA speeds.
 
 ```bash
-# TODO: clean this up:
-lxc profile edit sglang < ./configs/lxd/profiles/sglang.yaml
-lxc profile set sglang user.user-data - < ./configs/lxd/init/sglang.yaml
-## TODO: cleanup
+# Navigate to the infrastructure repository
+cd ~/runemind-infrastructure/configs/lxd/
 
-# Launch the container
-lxc launch ubuntu:24.04 sglang --profile default --profile sglang
+# Create the empty profile
+lxc profile create vllm
 
-# Watch the automated installation in real-time
-lxc exec sglang -- tail -f /var/log/cloud-init-output.log
+# Inject the hardware and network configuration
+lxc profile edit vllm < profiles/vllm.yaml
 
-# Verify it got the static IP (10.10.10.50) and the GPUs
-lxc list sglang
-
-# Drop into the container as root to begin the SGLang installation
-lxc exec sglang -- bash
+# Inject the cloud-init bootstrap script
+lxc profile set vllm user.user-data - < init/vllm.yaml
 ```
 
-## AA
+#### **8.4. Container Launch & Verification**
+
+Launch the container using the official Ubuntu 24.04 image and apply our newly configured profile.
+
+```bash
+# Launch the container
+lxc launch ubuntu:24.04 vllm --profile default --profile vllm
+
+# Watch the automated cloud-init installation in real-time
+lxc exec vllm -- tail -f /var/log/cloud-init-output.log
+
+# Verify the container received its static IP (10.10.10.50)
+lxc list vllm
+
+# Verify the GPUs successfully passed through to the container
+lxc exec vllm -- nvidia-smi
+```
+
+#### **8.5. Systemd Service Deployment**
+
+Once `cloud-init` finishes compiling the environment, we must wrap the optimized vLLM launch command into a robust `systemd` service inside the container.
+
+To maintain total decoupling and allow rapid benchmarking without systemd daemon reloads, the service relies entirely on `/etc/default/vllm` as its absolute source of truth. All environment variables, CUDA paths, and execution arguments (`$VLLM_ARGS`) are sourced strictly from this file.
+
+```bash
+# Drop into the container shell
+lxc exec vllm -- bash
+
+# Create the systemd service file
+sudo vim /etc/systemd/system/vllm.service
+```
+
+**File: `/etc/systemd/system/vllm.service` (Inside Container)**
+
+```ini
+[Unit]
+Description=vLLM AI Inference Engine (Qwen MoE)
+Documentation=https://docs.vllm.ai/
+After=network.target
+
+[Service]
+User=vllm
+Group=vllm
+WorkingDirectory=/opt/vllm
+EnvironmentFile=/etc/default/vllm
+ExecStart=/opt/vllm/venv/bin/python3 -m vllm.entrypoints.openai.api_server $VLLM_ARGS
+Restart=always
+RestartSec=10
+LimitNOFILE=1048576
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Apply the configuration and bring the AI engine online:
+
+```bash
+# Reload systemd to register the new unit file
+systemctl daemon-reload
+
+# Enable the service to start automatically on container boot
+systemctl enable --now vllm.service
+
+# Monitor the engine startup, JIT compilation, and model loading in real-time
+journalctl -fu vllm.service
+```
+
+_(Operational Note: To tune the model, adjust batch sizes, or swap Attention Backends, simply edit `/etc/default/vllm` inside the container and run `systemctl restart vllm`. No `daemon-reload` is necessary)._
