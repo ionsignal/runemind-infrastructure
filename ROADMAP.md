@@ -1,4 +1,4 @@
-# Nerrus Infrastructure Roadmap: Source of Truth
+# Nerrus Infrastructure Roadmap
 
 **Mission:** Architect and maintain a high-performance, hybrid-workload edge server balancing a ~30B parameter MoE LLM (AI Inference) and real-time Minecraft game servers (LXD) within a strict Zero-Trust DMZ environment. All workloads, including the AI engine, operate strictly within unprivileged containers to ensure absolute host isolation.
 
@@ -16,7 +16,7 @@
 
 ### Architectural Constraints
 
-- **Zero-Trust DMZ:** The host cannot initiate outbound connections to Internal (`192.168.x.x`, `10.x.x.x`) or Home (`172.20.3.0/24`) networks.
+- **Zero-Trust DMZ:** The host cannot initiate outbound connections to Internal (`192.168.x.x`, `10.x.x.x` external) or Home (`172.20.3.0/24`) networks.
 - **Defense-in-Depth Containerization:** No workloads run directly on the bare-metal host OS. Both the AI Inference Engine and Game Servers operate inside heavily restricted, unprivileged LXD containers.
 - **Micro-CA SSL:** Wildcard certificates (`*.ionsignal.com`) are generated securely via Caddy using the `acme-dns` plugin. The `acme-dns` service runs on an isolated AWS ARM64 instance to prevent storing highly privileged AWS Route 53 IAM credentials on the on-premise DMZ host.
 
@@ -39,13 +39,14 @@ _Objective: Establish a secure host environment, enforce network boundaries, int
 
 _Objective: Deploy the Qwen ~30B MoE LLM securely within an unprivileged LXD container, utilizing GPU passthrough to maintain bare-metal PCIe efficiency._
 
-- **NVIDIA Host Stack:** Install proprietary v535+ drivers natively on the host OS to initialize the PCIe devices (CUDA toolkit installation on host is no longer required due to containerization).
-- **Containerized Engine Deployment (Pivot B):**
-  - Provision a dedicated, unprivileged LXD container for the AI engine.
-  - Utilize LXD's native GPU passthrough (`lxc config device add [container] gpu gpu`) to map the 4x RTX A4000s directly into the container namespace.
-  - Install Docker _nested_ inside this LXD container to run the vLLM (or SGLANG) image, isolating the host from potential RCE vulnerabilities in the AI API.
-- **Execution Strategy:** Launch the inference engine utilizing FP8 Quantization and `--tensor-parallel-size 4` to stripe the model perfectly across the passed-through GPUs.
-- **Thermal Management:** Implement a cron/systemd service on the _host_ to monitor `nvidia-smi -q -d TEMPERATURE` and alert on thermal throttling, ensuring the high-RPM ASUS chassis fans are mitigating the sustained inference load.
+- **[✓] NVIDIA Host Stack:** Installed headless proprietary v580 drivers and the NVIDIA Container Toolkit natively on the host OS to initialize the PCIe devices. Strictly avoided host-level CUDA or Python deployments to maintain a minimal attack surface.
+- **[✓] Decoupled AI Storage Vault:** Provisioned a 100GB custom storage volume on the ZFS `nvme-pool`. Redirected all HuggingFace and Triton caches directly to this vault, completely decoupling the massive LLM model weights from the ephemeral container OS and preventing OS drive exhaustion.
+- **[✓] Containerized Engine Deployment (Declarative IaC):**
+  - Provisioned a dedicated, unprivileged LXD container using declarative YAML profiles with a static IP (`10.10.10.50`).
+  - Utilized LXD's native GPU passthrough (`lxc config device add [container] gpu gpu`) to map the 4x RTX A4000s directly into the container namespace.
+  - Embedded a robust `cloud-init` script for zero-touch provisioning, which automatically built an isolated Python virtual environment, installed PyTorch (cu124), and compiled the SGLang inference engine upon first boot.
+- **[ ] Execution Strategy (Next Step):** Download the model to the NVMe vault and launch the inference engine utilizing FP8 Quantization and `--tensor-parallel-size 4` to stripe the model perfectly across the passed-through GPUs.
+- **[ ] Thermal Management:** Implement a cron/systemd service on the _host_ to monitor `nvidia-smi -q -d TEMPERATURE` and alert on thermal throttling, ensuring the high-RPM ASUS chassis fans are mitigating the sustained inference load.
 
 ---
 
@@ -57,7 +58,7 @@ _Objective: Establish a highly dynamic, ephemeral containerization layer for gam
   - Minecraft containers are treated as **ephemeral, disposable compute**.
   - Leverage ZFS Copy-on-Write to spin up base Ubuntu/PaperMC server images in milliseconds.
   - Persistent state (Player Worlds, Shared Plugins, Configurations) is completely decoupled into **LXD Custom Storage Volumes**. These volumes are attached at runtime and survive container teardowns, allowing for independent snapshotting and backups.
-- **Network Fencing:** Ensure the `lxdbr0` bridge routes correctly through the host's `bond0` interface. Apply strict LXD network ACLs to ensure Minecraft containers cannot access the AI container's API port unless explicitly authorized.
+- **Network Fencing & Security:** Ensure the `lxdbr0` bridge (`10.10.10.0/24`) routes correctly through the host's `bond0` interface for NAT internet access. Enforce hypervisor-level IP/MAC spoofing protection (`security.ipv4_filtering=true`) on all containers. Host-level UFW aggressively drops any routed traffic attempting to scan or access internal management subnets, while allowing game servers unfettered local access to the AI container.
 - **Container Architecture:** Deploy unprivileged Ubuntu containers using declarative YAML profiles.
   - Container 1: Velocity Proxy (Static IP on `lxdbr0`).
   - Containers 2-N: PaperMC backend servers (Ephemeral, mounting Custom Storage Volumes).
@@ -71,4 +72,4 @@ _Objective: Connect workloads to the public internet securely and route internal
 - **DDoS & Edge:** Player traffic hits `play.ionsignal.com` (or `runemind.com`) via TCPShield.
 - **Firewall Routing:** The upstream EFG firewall port-forwards TCP 25565 directly to the Velocity Proxy container IP on the `lxdbr0` network.
 - **Proxy Protocol:** Velocity MUST be configured to accept the Proxy Protocol (v2) from TCPShield so backend PaperMC servers log the true player IPs.
-- **Internal API Routing:** Caddy continues to act as the primary reverse proxy. It will securely route authenticated AI API requests from the network directly into the AI LXD container's IP (e.g., `10.x.x.x:8080`) while stripping buffering (`flush_interval -1`) to allow zero-latency LLM token streaming (SSE).
+- **Internal API Routing:** Caddy continues to act as the primary reverse proxy. It will securely route authenticated AI API requests from the network directly into the AI LXD container's static IP (`10.10.10.50:8080`) while stripping buffering (`flush_interval -1`) to allow zero-latency LLM token streaming (SSE).
