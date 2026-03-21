@@ -31,18 +31,7 @@ write_files:
       VLLM_CACHE_ROOT=/models/vllm
       VLLM_ATTENTION_BACKEND=FLASHINFER
       VLLM_MARLIN_USE_ATOMIC_ADD=1
-      VLLM_ARGS="--model Qwen/Qwen3.5-35B-A3B-FP8 \
-        --host 0.0.0.0 \
-        --port 8080 \
-        --tensor-parallel-size 4 \
-        --gpu-memory-utilization 0.80 \
-        --max-model-len 2048 \
-        --max-num-seqs 64 \
-        --enable-chunked-prefill \
-        --max-num-batched-tokens 8192 \
-        --enable-prefix-caching \
-        --trust-remote-code \
-        --reasoning-parser qwen3"
+      VLLM_ARGS="--model Qwen/Qwen3.5-35B-A3B-FP8 --host 0.0.0.0 --port 8080 --tensor-parallel-size 4 --gpu-memory-utilization 0.80 --max-model-len 2048 --max-num-seqs 64 --enable-chunked-prefill --max-num-batched-tokens 8192 --enable-prefix-caching --trust-remote-code --reasoning-parser qwen3"
 
   - path: /etc/profile.d/vllm.sh
     owner: root:root
