@@ -28,14 +28,14 @@ write_files:
       PIP_CACHE_DIR=/models/pip_cache
       PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
       NCCL_DEBUG=TRACE
-      NCCL_P2P_LEVEL=SYS
-      NCCL_SHM_DISABLE=1
+      NCCL_P2P_LEVEL=PHB
+      NCCL_SHM_DISABLE=0
       NCCL_P2P_DISABLE=0
       NCCL_DEBUG_SUBSYS=INIT,ENV,GRAPH,NET
       NCCL_DEBUG_FILE=/opt/vllm/nccl_debug_%h_%p.log
       VLLM_CACHE_ROOT=/models/vllm
       VLLM_MARLIN_USE_ATOMIC_ADD=1
-      API_SERVER_ARGS="--model Qwen/Qwen3.5-35B-A3B-FP8 --host 0.0.0.0 --port 8080 --tensor-parallel-size 2 --pipeline-parallel-size 2 --attention-backend flashinfer --gpu-memory-utilization 0.80 --max-model-len 2048 --max-num-seqs 64 --enable-chunked-prefill --max-num-batched-tokens 2048 --enable-prefix-caching --trust-remote-code --reasoning-parser qwen3 --disable-custom-all-reduce"
+      API_SERVER_ARGS="--model Qwen/Qwen3.5-35B-A3B-FP8 --host 0.0.0.0 --port 8080 --tensor-parallel-size 4 --attention-backend flashinfer --gpu-memory-utilization 0.80 --max-model-len 2048 --max-num-seqs 64 --enable-chunked-prefill --max-num-batched-tokens 2048 --enable-prefix-caching --trust-remote-code --reasoning-parser qwen3 --disable-custom-all-reduce"
 
   - path: /etc/profile.d/vllm.sh
     owner: root:root
