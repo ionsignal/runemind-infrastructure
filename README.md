@@ -336,67 +336,13 @@ sudo chown caddy:caddy /etc/caddy/acmedns.json
 sudo chmod 600 /etc/caddy/acmedns.json
 ```
 
-### **5. Edge Routing & SSL Configuration (Caddyfile)**
+### **5. Edge Routing & SSL Configuration (caddyfile)**
 
-Define the reverse proxy rules and instruct Caddy to use the `acme-dns` credentials for zero-downtime, automated wildcard certificate renewals.
-
-```bash
-sudo vim /etc/caddy/Caddyfile
-```
-
-Add the following configuration, adjusting the reverse proxy ports to match your specific vLLM/SGLANG and LXD setups:
-
-```conf
-# /etc/caddy/Caddyfile
-
-# Global configuration
-{
-    email admin@ionsignal.com
-    # UNCOMMENT DURING INITIAL TESTING TO AVOID LETS ENCRYPT RATE LIMITS
-    # acme_ca https://acme-staging-v02.api.letsencrypt.org/directory
-}
-
-# Generate Wildcard Certificate via ACME-DNS Delegation
-*.ionsignal.com {
-    tls {
-        dns acmedns /etc/caddy/acmedns.json
-    }
-    # Security Headers for the DMZ
-    header {
-        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
-        X-Content-Type-Options "nosniff"
-        X-Frame-Options "DENY"
-        X-XSS-Protection "1; mode=block"
-    }
-    # Route AI API Traffic (vLLM)
-    @ai host api.ionsignal.com
-    handle @ai {
-        reverse_proxy 10.10.10.50:8080 {
-            # Disable buffering for zero-latency LLM token streaming (SSE)
-            flush_interval -1
-        }
-    }
-    # Route LXD UI Traffic
-    @lxd host lxd.ionsignal.com
-    handle @lxd {
-        reverse_proxy 127.0.0.1:8443 {
-            transport http {
-                tls_insecure_skip_verify
-            }
-        }
-    }
-    # Fallback: Drop any requests to unconfigured subdomains
-    handle {
-        respond "404 Not Found - Unauthorized Subdomain" 404
-    }
-}
-```
-
-Set the correct ownership and permissions for the configuration file:
+Define the reverse proxy rules and instruct Caddy to use the `acme-dns` credentials for zero-downtime, automated wildcard certificate renewals. Add /etc/caddy/caddyfile configuration, adjusting the reverse proxy ports to match your specific vLLM/SGLANG and LXD setups. Set the correct ownership and permissions for the configuration file:
 
 ```bash
-sudo chown caddy:caddy /etc/caddy/Caddyfile
-sudo chmod 644 /etc/caddy/Caddyfile
+sudo chown caddy:caddy /etc/caddy/caddyfile
+sudo chmod 644 /etc/caddy/caddyfile
 ```
 
 ### **6. Systemd Service Integration**
@@ -404,33 +350,7 @@ sudo chmod 644 /etc/caddy/Caddyfile
 Create a systemd unit file to manage the Caddy process. This configuration enforces the unprivileged `caddy` user while explicitly passing the network binding capabilities through systemd's security boundary.
 
 ```bash
-sudo nano /etc/systemd/system/caddy.service
-```
-
-```ini
-[Unit]
-Description=Caddy Web Server
-Documentation=https://caddyserver.com/docs/
-After=network.target network-online.target
-Requires=network-online.target
-
-[Service]
-Type=notify
-User=caddy
-Group=caddy
-ExecStart=/usr/local/bin/caddy run --environ --config /etc/caddy/Caddyfile
-ExecReload=/usr/local/bin/caddy reload --config /etc/caddy/Caddyfile --force
-TimeoutStopSec=5s
-LimitNOFILE=1048576
-PrivateTmp=true
-ProtectSystem=full
-# Crucial: Allows the non-root user to bind to ports 80/443
-AmbientCapabilities=CAP_NET_BIND_SERVICE
-# Grants write access to the isolated home directory for SSL cert storage
-ReadWritePaths=/var/lib/caddy
-
-[Install]
-WantedBy=multi-user.target
+sudo vim /etc/systemd/system/caddy.service
 ```
 
 Reload the systemd daemon, enable the service to start on boot, and start it immediately:
