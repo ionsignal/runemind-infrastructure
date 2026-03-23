@@ -128,6 +128,10 @@ sudo ufw allow from 172.20.3.158 to any port 22 proto tcp comment 'Allow SSH Hom
 sudo ufw allow from 172.20.1.0/24 to any port 443 proto tcp comment 'Allow HTTPS Management'
 sudo ufw allow from 172.20.3.0/24 to any port 443 proto tcp comment 'Allow HTTPS Home'
 
+# Allow the Fastify Control Plane (TCP 8443) to reach the LXD API, Deny others
+sudo ufw allow in on lxdbr0 from 10.10.10.20 to 10.10.10.1 port 8443 proto tcp comment 'Allow Fastify to LXD API'
+sudo ufw deny in on lxdbr0 from 10.10.10.0/24 to 10.10.10.1 port 8443 proto tcp comment 'Deny Game Servers to LXD API'
+
 # Explicitly allow DHCP (UDP 67) from containers to the host
 sudo ufw allow in on lxdbr0 to any port 67 proto udp comment 'LXD DHCP'
 
@@ -364,10 +368,10 @@ Add the following configuration, adjusting the reverse proxy ports to match your
         X-Frame-Options "DENY"
         X-XSS-Protection "1; mode=block"
     }
-    # Route AI API Traffic (sglang)
+    # Route AI API Traffic (vLLM)
     @ai host api.ionsignal.com
     handle @ai {
-        reverse_proxy 127.0.0.1:8080 {
+        reverse_proxy 10.10.10.50:8080 {
             # Disable buffering for zero-latency LLM token streaming (SSE)
             flush_interval -1
         }
