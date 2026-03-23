@@ -1,0 +1,24 @@
+[Unit]
+Description=Caddy Web Server
+Documentation=https://caddyserver.com/docs/
+After=network.target network-online.target
+Requires=network-online.target
+
+[Service]
+Type=notify
+User=caddy
+Group=caddy
+ExecStart=/usr/local/bin/caddy run --environ --config /etc/caddy/caddyfile --adapter caddyfile
+ExecReload=/usr/local/bin/caddy reload --config /etc/caddy/caddyfile --adapter caddyfile --force
+TimeoutStopSec=5s
+LimitNOFILE=1048576
+PrivateTmp=true
+ProtectSystem=full
+NoNewPrivileges=true
+# Crucial: Allows the non-root user to bind to ports 80/443
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+# Grants write access to the isolated home directory for SSL cert storage
+ReadWritePaths=/var/lib/caddy
+
+[Install]
+WantedBy=multi-user.target
