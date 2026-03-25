@@ -1,11 +1,10 @@
 name: builder
-description: "Privileged Clean-Room Image Builder (Distrobuilder)"
+description: 'Privileged Clean-Room Image Builder (Distrobuilder)'
 config:
   # Distrobuilder requires root-level capabilities to mount filesystems (proc, sys, dev)
   # and chroot into the temporary rootfs during compilation.
-  security.privileged: "true"
-  security.nesting: "true"
-
+  security.privileged: 'true'
+  security.nesting: 'true'
   # Ensure the container can load loop and squashfs modules,
   # which Distrobuilder needs to pack the final image artifact.
   linux.kernel_modules: loop,squashfs

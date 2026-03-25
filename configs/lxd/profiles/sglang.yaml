@@ -1,20 +1,20 @@
 name: sglang
-description: "Unprivileged Qwen MoE AI Inference Engine (SGLang)"
+description: 'Unprivileged Qwen MoE AI Inference Engine (SGLang)'
 config:
   # Container Security Baseline
-  security.nesting: "false"
-  security.privileged: "false"
+  security.nesting: 'false'
+  security.privileged: 'false'
 
   # Boot & Auto-start
-  boot.autostart: "true"
-  boot.autostart.priority: "100" # Start before game servers
+  boot.autostart: 'true'
+  boot.autostart.priority: '100' # Start before game servers
 
   # Nvidia Runtime
-  nvidia.runtime: "true"
+  nvidia.runtime: 'true'
 
   # Resource Limits (Protects the host OS and ZFS ARC)
-  limits.cpu: "8"
-  limits.memory: "64GB"
+  limits.cpu: '8'
+  limits.memory: '64GB'
 
 devices:
   # Network Interface
@@ -23,8 +23,8 @@ devices:
     network: lxdbr0
     type: nic
     ipv4.address: 10.10.10.50
-    security.ipv4_filtering: "true"
-    security.mac_filtering: "true"
+    security.ipv4_filtering: 'true'
+    security.mac_filtering: 'true'
 
   # Root Filesystem (Ephemeral OS drive)
   root:

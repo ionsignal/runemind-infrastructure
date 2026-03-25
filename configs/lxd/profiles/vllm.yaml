@@ -1,16 +1,16 @@
 name: vllm
-description: "High-Performance Unprivileged vLLM Engine"
+description: 'High-Performance Unprivileged vLLM Engine'
 config:
   # Container Security Baseline (Must be unprivileged for nvidia.runtime)
-  security.nesting: "true"
-  security.privileged: "false"
+  security.nesting: 'true'
+  security.privileged: 'false'
 
   # Boot & Auto-start
-  boot.autostart: "true"
-  boot.autostart.priority: "100"
+  boot.autostart: 'true'
+  boot.autostart.priority: '100'
 
   # Nvidia Runtime Bridge
-  nvidia.runtime: "true"
+  nvidia.runtime: 'true'
 
   # Native LXD kernel limit for NCCL Shared Memory
   limits.kernel.memlock: unlimited
@@ -23,8 +23,8 @@ devices:
     type: nic
     ipv4.address: 10.10.10.50
     # Hypervisor-level anti-spoofing remains active for network hygiene
-    security.ipv4_filtering: "true"
-    security.mac_filtering: "true"
+    security.ipv4_filtering: 'true'
+    security.mac_filtering: 'true'
 
   # Root Filesystem (Ephemeral OS drive)
   root:
