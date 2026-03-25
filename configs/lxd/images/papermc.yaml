@@ -16,10 +16,16 @@ packages:
   update: true
   cleanup: true
   sets:
+    # Early Packages (Installed during debootstrap phase)
     - packages:
         - ca-certificates
-        - tzdata
         - wget
+      action: install
+      early: true
+
+    # Standard Packages (Installed after repositories are added)
+    - packages:
+        - tzdata
         - tar
         - systemd
         - systemd-sysv
@@ -43,7 +49,7 @@ packages:
         deb [signed-by=/etc/apt/keyrings/adoptium.asc] https://packages.adoptium.net/artifactory/deb {{ image.release }} main
 
 actions:
-  # POST-UNPACK: Inject the GPG key BEFORE apt-get update runs
+  # POST-UNPACK: Bootstrap wget and fetch the Adoptium key dynamically
   - trigger: post-unpack
     action: |-
       #!/bin/sh
@@ -52,58 +58,8 @@ actions:
       # Create the modern keyrings directory
       mkdir -p /etc/apt/keyrings
 
-      # Write the Adoptium GPG key directly to disk.
-      # We use sed to strip the leading YAML indentation spaces so the key is perfectly valid.
-      sed -e 's/^[[:space:]]*//' > /etc/apt/keyrings/adoptium.asc << 'EOF'
-      -----BEGIN PGP PUBLIC KEY BLOCK-----
-      mQENBGGTvTQBCAC6ey144n7CG8foafF6mwgIBN1fIm1ILZDuGS4tMr0/XI8pgJnT
-      QvsPxZWEvtSm7bEMObzEoZJcXwjBcJl1B0ui8k5kHMTI75gCmZPsoKLFWIEpuRBQ
-      PBocusw80apDmLnNDQLVQvDFtEua5gaNa/fRw9YsmBoXBqvgrjFUIdGyWoQvH5+a
-      9OYlWD9n5VV0gnVMb+aclwVzB/zJw3kHGSgzuMtlAHeQiah7Y8yomQn/UIX8yqDf
-      +11sP3+c87YcjkRqImRTtmKEDcEtGPAIXC6SYA+uEEkbYE0Fy0chkvtnVWJ597fa
-      Epai4rnICU8zoJ6X5z3v1aM2WerhX9oq9X8PABEBAAG0QEFkb3B0aXVtIEdQRyBL
-      ZXkgKERFQi9SUE0gU2lnbmluZyBLZXkpIDx0ZW11cmluLWRldkBlY2xpcHNlLm9y
-      Zz6JAVIEEwEIADwWIQQ7BNdTyQUNml00PzmEPEilZfjwSwUCYZO9NAIbAwULCQgH
-      AgMiAgEGFQoJCAsCBBYCAwECHgcCF4AACgkQhDxIpWX48Et4AggAjjJzYWuKV3nG
-      7ngInngl8G/m9JoHr7BmwgcQXYhdy5hVkMcUx5JLeXz2LMBUH/F2nD595hgjMabk
-      kVib20X8lq9RsNbdfc2hBcWU6qyHKxsIqT4boI2/XDyEzzMyyZWWNGo/27Ci7Xmj
-      pWu31nh0pDdPqdyWDIKojbVVnxlCRY8as8Sm+1ufi709KCi4MuwHNsUlCSwb/fju
-      NKeHkrHbLcHKUUIEcmTSKRWrpMYBzm1HYOGBz4xPuELwUfUp71ehfoyBZlp6RDRf
-      l5TYI1FmCyHuvjNhrJgWv7bOTcf8yObGY+TEUhzc4xQqCrF4ur9d3opvsuPBQsv+
-      Klqi5KSZgrkBDQRhk700AQgAq14okly8cFrpYVenEQPiB75AUZfKRpMduiR6IxAj
-      SKcH7aSoFZ9AubUEBVpZsyT5svxoEPe1i4TdbF+m9FGy42EcOlLa3ArLTj5H8FRl
-      UdGZB9I5mk4GptOzPM+aHMMu92vW/ZwjuS8DvOiQSp+cUmG1EqOMJSM7e/4BM71z
-      E+OKaVJCj79pEzhG3SK/IC/OlxxyETT66NSfYJd7Sw5R6Vr19am/uNU690W0CJ+q
-      VQeFpmDMr7LnfdFRIh+lJe05+PvWXeidkGjox5cbG52wf8aRIR/FgkfcFvqRMN1f
-      B+dVOWueloUeVAnzcUznOKmUEs7LP9ObJhYHHgup4IAU2wARAQABiQE2BBgBCAAg
-      FiEEOwTXU8kFDZpdND85hDxIpWX48EsFAmGTvTQCGwwACgkQhDxIpWX48EvXHQf/
-      Q0nZsGDXnZHiBoojeSdpkO7WBjMIP3w1GdLvRpPQrS8TfOPbZuoevzCNh38Y3gwF
-      yelJspvzDQrBXhgkzAGlucYg8Y7KHa5Ebm7iDgMzc37L1hYSZTYCqwd7aowfgy34
-      hOk3B67LffkJpIh738Oa9CtlwxQ9xcytmBmQ1fBBOwm/9IhAwHPQuydYIs4DxWbj
-      0MGSP4fDntU7e4UjsHNmhudDcYol0FaqdHHIIB9C/G4CzetRwHFOn3b4JwXMU7YU
-      6aJA3mXhi3hggMC3wkT2HHZ/TquuOdNc02fypWOCDOHz0alBBJNqoVUNFNqU3tfJ
-      wI4qF/KKq9BfyfucAs0ykA==
-      =szki
-      -----END PGP PUBLIC KEY BLOCK-----
-      EOF
-
-  # POST-PACKAGES: Systemd Initialization & Cleanup
-  - trigger: post-packages
-    action: |-
-      #!/bin/sh
-      set -eux
-
-      # Ensure locales are valid for Java
-      locale-gen en_US.UTF-8
-      update-locale LANG=en_US.UTF-8
-
-      # Enable systemd-networkd for Netplan
-      systemctl enable systemd-networkd
-
-      # Cleanup underlying /run from the build environment to prevent boot conflicts
-      mount -o bind / /mnt
-      rm -rf /mnt/run/*
-      umount /mnt
+      # Download the official Adoptium GPG key directly to the keyring
+      wget -qO /etc/apt/keyrings/adoptium.asc https://packages.adoptium.net/artifactory/api/gpg/key/public
 
   # POST-PACKAGES: System Scaffolding & Artifact Retrieval
   # (Must run here because wget/gnupg are now installed)
