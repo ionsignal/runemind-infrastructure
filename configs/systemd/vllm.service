@@ -1,0 +1,17 @@
+[Unit]
+Description=vLLM AI Inference Engine (Qwen MoE)
+Documentation=https://docs.vllm.ai/
+After=network.target
+
+[Service]
+User=vllm
+Group=vllm
+WorkingDirectory=/opt/vllm
+EnvironmentFile=/etc/default/vllm
+ExecStart=/opt/vllm/venv/bin/python3 -m vllm.entrypoints.openai.api_server $API_SERVER_ARGS
+Restart=always
+RestartSec=10
+LimitNOFILE=1048576
+
+[Install]
+WantedBy=multi-user.target
