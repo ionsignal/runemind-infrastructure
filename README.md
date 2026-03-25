@@ -723,7 +723,7 @@ To inject or update an LXD profile directly from a YAML configuration file, use 
 
 ```bash
 # Replace [profile] with the target profile name (e.g., minecraft-base)
-cat /workspace/ionsignal-network/configs/lxd/[profile].yaml | lxc profile edit [profile]
+cat ./runemind-infrastructure/configs/lxd/[profile].yaml | lxc profile edit [profile]
 
 # Verify the changes were applied
 lxc profile show [profile]
@@ -845,7 +845,7 @@ To allow the 4x RTX A4000s to communicate directly over the PCIe bus (bypassing 
 
 ```bash
 # Navigate to the infrastructure repository
-cd ~/runemind-infrastructure/configs/lxd/
+cd ~./runemind-infrastructure/configs/lxd/
 
 # Create the empty profile
 lxc profile create vllm
@@ -891,26 +891,6 @@ sudo vim /etc/systemd/system/vllm.service
 
 **File: `/etc/systemd/system/vllm.service` (Inside Container)**
 
-```ini
-[Unit]
-Description=vLLM AI Inference Engine (Qwen MoE)
-Documentation=https://docs.vllm.ai/
-After=network.target
-
-[Service]
-User=vllm
-Group=vllm
-WorkingDirectory=/opt/vllm
-EnvironmentFile=/etc/default/vllm
-ExecStart=/opt/vllm/venv/bin/python3 -m vllm.entrypoints.openai.api_server $API_SERVER_ARGS
-Restart=always
-RestartSec=10
-LimitNOFILE=1048576
-
-[Install]
-WantedBy=multi-user.target
-```
-
 Apply the configuration and bring the AI engine online:
 
 ```bash
@@ -925,3 +905,65 @@ journalctl -fu vllm.service
 ```
 
 _(Operational Note: To tune the model, adjust batch sizes, or swap Attention Backends, simply edit `/etc/default/vllm` inside the container and run `systemctl restart vllm`. No `daemon-reload` is necessary)._
+
+## LXD Clean-Room Image Builder (Distrobuilder)
+
+_Objective: Maintain a pristine bare-metal host by isolating the image compilation process. We will provision a dedicated, privileged LXD container on the high-speed NVMe ZFS pool to run Distrobuilder. This "Clean Room" compiles our immutable Edge PaaS images (PaperMC, Velocity) from declarative YAML files without polluting the host OS with temporary `rootfs` mounts, apt caches, or build artifacts._
+
+### **1. Builder Profile**
+
+Distrobuilder requires root-level capabilities to mount filesystems (`proc`, `sys`, `dev`) and `chroot` into the temporary `rootfs` during compilation. Furthermore, to prevent I/O thrashing on the 250GB host OS drive during the heavy compression phase, we force the builder's root disk onto the `is-nvme-pool`.
+
+See declarative profile at `configs/lxd/profiles/builder.yaml`.
+
+### **2. Provision the Build Environment**
+
+Inject the profile into LXD and launch the ephemeral builder container. We install the `distrobuilder` Go binary natively inside this isolated environment.
+
+```bash
+# Initialize the empty profile in the LXD database
+lxc profile create builder
+
+# Inject the declarative YAML configuration
+cat ./runemind-infrastructure/configs/lxd/profiles/builder.yaml | lxc profile edit builder
+
+# Launch the Clean-Room container using Ubuntu 24.04
+lxc launch ubuntu:24.04 builder --profile builder
+
+# Install Distrobuilder natively inside the container
+lxc exec builder -- snap install distrobuilder --classic
+lxc exec builder -- apt-get update
+lxc exec builder -- apt-get install -y debootstrap
+
+# Scaffold the internal workspace directory
+lxc exec builder -- mkdir -p /workspace
+```
+
+### **3. The Compilation Pipeline (Standard Operating Procedure)**
+
+When a new base image (e.g., `papermc.yaml` or `velocity.yaml`) needs to be compiled or updated, execute the following pipeline from the bare-metal host. This pushes the definition into the clean room, compiles the cryptographic artifacts, and pulls them back to the host's local image registry.
+
+```bash
+# Push the declarative image definition into the builder's workspace
+lxc file push ./runemind-infrastructure/configs/lxd/images/papermc.yaml builder/workspace/
+
+# Execute the build process inside the container
+# (This will download the rootfs, install packages, and compress the squashfs)
+lxc exec builder -- bash -c "cd /workspace && distrobuilder build-incus papermc.yaml"
+
+# Pull the compiled artifacts back to the host's temporary directory
+mkdir -p /tmp/lxd-builds
+lxc file pull builder/workspace/incus.tar.xz /tmp/lxd-builds/
+lxc file pull builder/workspace/rootfs.squashfs /tmp/lxd-builds/
+
+# Import the artifacts into the host's LXD image registry with an alias
+lxc image import /tmp/lxd-builds/incus.tar.xz /tmp/lxd-builds/rootfs.squashfs --alias papermc
+
+# Clean up the host's temporary files
+rm -rf /tmp/lxd-builds
+
+# Verify the image is available for Fastify to clone
+lxc image list
+```
+
+_(Note: The `image-builder` container can be left running silently in the background, or stopped via `lxc stop image-builder` when not actively compiling to conserve resources)._
