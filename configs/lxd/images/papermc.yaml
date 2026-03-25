@@ -5,7 +5,8 @@ image:
   description: 'Immutable PaperMC Edge Server (1.21.10)'
 
 source:
-  downloader: ubuntu-http
+  downloader: rootfs-http
+  url: http://cdimage.ubuntu.com/ubuntu-base/releases/24.04/release/ubuntu-base-24.04.4-base-amd64.tar.gz
 
 packages:
   manager: apt
