@@ -1,0 +1,25 @@
+name: builder
+description: "Privileged Clean-Room Image Builder (Distrobuilder)"
+config:
+  # Distrobuilder requires root-level capabilities to mount filesystems (proc, sys, dev)
+  # and chroot into the temporary rootfs during compilation.
+  security.privileged: "true"
+  security.nesting: "true"
+
+  # Ensure the container can load loop and squashfs modules,
+  # which Distrobuilder needs to pack the final image artifact.
+  linux.kernel_modules: loop,squashfs
+
+devices:
+  # Standard network attachment to reach the internet (apt, wget) and the host LXD API
+  eth0:
+    name: eth0
+    network: lxdbr0
+    type: nic
+
+  # Override the default pool: Force the builder's ephemeral OS and workspace
+  # onto the high-speed NVMe ZFS pool to prevent thrashing the host OS drive.
+  root:
+    path: /
+    pool: is-nvme-pool
+    type: disk
