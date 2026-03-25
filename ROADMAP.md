@@ -70,8 +70,7 @@ _Objective: Deploy a highly reproducible, stateless PaperMC base image and imple
 To maintain an immutable "Edge PaaS" architecture, we abandon manual container snapshots and `cloud-init` scripts. Instead, we use **Distrobuilder** to compile a pristine, declarative `minecraft-base` image from scratch.
 
 - **Declarative YAML:** The image is defined in a single Distrobuilder YAML file containing the Ubuntu 24.04 rootfs, OpenJDK 21, the PaperMC `.jar`, and an unprivileged `minecraft` service user.
-- **Zero-Logic Entrypoint:** The container contains **no bash scripts** to parse environment variables. The `systemd` service simply executes `java -jar paper.jar --ion-config /etc/ion/config.json`.
-- **Result:** The image is cryptographically verifiable, boots in milliseconds, and leaves zero artifact history (like bash logs or old SSH keys).
+- **Zero-Logic Entrypoint:** The container contains **no bash scripts** to parse environment variables. The `systemd` service executes Java directly, natively loading dynamic JVM arguments via an `EnvironmentFile=-/etc/ion/jvm.env` pushed by Fastify before boot. Standard configurations (e.g., `server.properties`) are injected directly to disk, completely bypassing command-line parsing.- **Result:** The image is cryptographically verifiable, boots in milliseconds, and leaves zero artifact history (like bash logs or old SSH keys).
 
 ### **3.2. The LXD File API (Data-Plane Push Model)**
 
