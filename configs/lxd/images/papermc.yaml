@@ -52,8 +52,9 @@ actions:
       # Create the modern keyrings directory
       mkdir -p /etc/apt/keyrings
 
-      # Write the Adoptium GPG key directly to disk
-      cat << 'EOF' > /etc/apt/keyrings/adoptium.asc
+      # Write the Adoptium GPG key directly to disk.
+      # We use sed to strip the leading YAML indentation spaces so the key is perfectly valid.
+      sed -e 's/^[[:space:]]*//' > /etc/apt/keyrings/adoptium.asc << 'EOF'
       -----BEGIN PGP PUBLIC KEY BLOCK-----
       mQENBGGTvTQBCAC6ey144n7CG8foafF6mwgIBN1fIm1ILZDuGS4tMr0/XI8pgJnT
       QvsPxZWEvtSm7bEMObzEoZJcXwjBcJl1B0ui8k5kHMTI75gCmZPsoKLFWIEpuRBQ
