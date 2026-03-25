@@ -1,0 +1,96 @@
+image:
+  distribution: ubuntu
+  release: noble
+  architecture: amd64
+  description: 'Immutable PaperMC Edge Server (1.21.10)'
+
+source:
+  downloader: ubuntu-http
+  url: http://archive.ubuntu.com/ubuntu
+  keys:
+    - 0x871920D1991BC93C # Ubuntu Archive Automatic Signing Key
+
+packages:
+  manager: apt
+  update: true
+  cleanup: true
+  sets:
+    - packages:
+        - ca-certificates
+        - tzdata
+        - wget
+        - gnupg
+        - zstd
+        - tar
+      action: install
+
+actions:
+  # POST-PACKAGES: System Scaffolding & Artifact Retrieval
+  # (Must run here because wget/gnupg are now installed)
+  - trigger: post-packages
+    action: |-
+      #!/bin/sh
+      set -e
+
+      # Fetch the Adoptium GPG key and add the repository
+      wget -qO - https://packages.adoptium.net/artifactory/api/gpg/key/public | gpg --dearmor | tee /etc/apt/trusted.gpg.d/adoptium.gpg > /dev/null
+      echo "deb https://packages.adoptium.net/artifactory/deb noble main" | tee /etc/apt/sources.list.d/adoptium.list
+      apt-get update
+      # Install the Temurin JRE
+      apt-get install -y temurin-21-jre
+
+      # Create the unprivileged service user
+      groupadd -g 1000 minecraft
+      useradd -u 1000 -g 1000 -s /usr/sbin/nologin -d /opt/minecraft minecraft
+
+      # Create strictly scoped directories (Mount points for ZFS)
+      mkdir -p /opt/minecraft/plugins
+      mkdir -p /opt/minecraft/world
+      mkdir -p /opt/minecraft/config
+
+      # Download PaperMC (1.21.10 latest build)
+      wget -qO /opt/minecraft/paper.jar "https://fill-data.papermc.io/v1/objects/158703f75a26f842ea656b3dc6d75bf3d1ec176b97a2c36384d0b80b3871af53/paper-1.21.10-130.jar"
+
+      # Lock down ownership to the unprivileged user
+      chown -R minecraft:minecraft /opt/minecraft
+
+      # Accept the EULA
+      echo "eula=true" > /opt/minecraft/eula.txt
+      chown minecraft:minecraft /opt/minecraft/eula.txt
+
+  # POST-FILES: Final Configuration & Boot Preparation
+  # (Must run here because the papermc.service file now exists)
+  - trigger: post-files
+    action: |-
+      #!/bin/sh
+      set -e
+
+      # Enable the systemd service so it boots automatically
+      ln -s /etc/systemd/system/papermc.service /etc/systemd/system/multi-user.target.wants/papermc.service
+
+files:
+  # The Zero-Logic Systemd Entrypoint
+  - path: /etc/systemd/system/papermc.service
+    generator: dump
+    mode: '0644'
+    content: |-
+      [Unit]
+      Description=PaperMC Edge Server
+      After=network.target
+
+      [Service]
+      Type=simple
+      User=minecraft
+      Group=minecraft
+      WorkingDirectory=/opt/minecraft
+      PassEnvironment=ION_TENANT_ID ION_JVM_ARGS
+      ExecStart=/usr/bin/java $ION_JVM_ARGS -jar paper.jar --nogui
+      SuccessExitStatus=143
+      Restart=on-failure
+      RestartSec=5
+      StandardInput=null
+      KillSignal=SIGTERM
+      TimeoutStopSec=120
+
+      [Install]
+      WantedBy=multi-user.target
