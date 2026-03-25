@@ -6,9 +6,6 @@ image:
 
 source:
   downloader: ubuntu-http
-  url: http://archive.ubuntu.com/ubuntu
-  keys:
-    - 0x871920D1991BC93C # Ubuntu Archive Automatic Signing Key
 
 packages:
   manager: apt
