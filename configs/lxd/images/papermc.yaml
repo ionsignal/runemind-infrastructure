@@ -5,8 +5,11 @@ image:
   description: 'Immutable PaperMC Edge Server (1.21.10)'
 
 source:
-  downloader: rootfs-http
-  url: http://cdimage.ubuntu.com/ubuntu-base/releases/24.04/release/ubuntu-base-24.04.4-base-amd64.tar.gz
+  downloader: debootstrap
+  url: http://archive.ubuntu.com/ubuntu
+  keyserver: keyserver.ubuntu.com
+  keys:
+    - 0xF6ECB3762474EDA9D21B7022871920D1991BC93C # Ubuntu Archive Automatic Signing Key (2018)
 
 packages:
   manager: apt
@@ -30,11 +33,17 @@ actions:
       #!/bin/sh
       set -e
 
-      # Fetch the Adoptium GPG key and add the repository
-      wget -qO - https://packages.adoptium.net/artifactory/api/gpg/key/public | gpg --dearmor | tee /etc/apt/trusted.gpg.d/adoptium.gpg > /dev/null
-      echo "deb https://packages.adoptium.net/artifactory/deb noble main" | tee /etc/apt/sources.list.d/adoptium.list
+      # Create the modern keyrings directory (missing in minimal rootfs)
+      mkdir -p /etc/apt/keyrings
+
+      # Fetch the Adoptium GPG key and isolate it in the keyrings directory
+      wget -qO - https://packages.adoptium.net/artifactory/api/gpg/key/public | gpg --dearmor | tee /etc/apt/keyrings/adoptium.gpg > /dev/null
+
+      # Explicitly bind the repository to the isolated key using [signed-by=...]
+      echo "deb [signed-by=/etc/apt/keyrings/adoptium.gpg] https://packages.adoptium.net/artifactory/deb noble main" | tee /etc/apt/sources.list.d/adoptium.list
+
+      # Update APT and install the JRE
       apt-get update
-      # Install the Temurin JRE
       apt-get install -y temurin-21-jre
 
       # Create the unprivileged service user
