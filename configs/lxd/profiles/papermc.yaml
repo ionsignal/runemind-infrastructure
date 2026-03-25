@@ -1,0 +1,40 @@
+name: papermc
+description: 'Unprivileged Ephemeral PaperMC Edge Server'
+config:
+  # Strict Zero-Trust Security Baseline
+  security.privileged: 'false'
+  security.nesting: 'false'
+
+  # Hypervisor-level resource limits
+  limits.cpu: '2'
+  limits.memory: '4GB'
+
+  # Prevent ZFS I/O storms on bare-metal boot.
+  # Fastify's InstanceService will orchestrate the staggered boot sequence.
+  boot.autostart: 'false'
+
+devices:
+  # Network Interface
+  eth0:
+    name: eth0
+    network: lxdbr0
+    type: nic
+    security.ipv4_filtering: 'true'
+    security.mac_filtering: 'true'
+
+  # Ephemeral Root Filesystem (Stateless OS)
+  root:
+    path: /
+    pool: default
+    type: disk
+
+  # =====================================================================
+  # NOTE ON PERSISTENT STORAGE:
+  # Persistent ZFS Custom Storage Volumes for the following paths:
+  #   - /opt/minecraft/world
+  #   - /opt/minecraft/plugins
+  #   - /opt/minecraft/config
+  # are NOT defined in this static profile. They are dynamically created
+  # and attached by the Fastify IonHostController during container
+  # provisioning to ensure absolute tenant isolation.
+  # =====================================================================
