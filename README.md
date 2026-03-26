@@ -841,8 +841,6 @@ lxc storage volume set is-nvme-pool is-model-vault size=100GiB
 
 To allow the 4x RTX A4000s to communicate directly over the PCIe bus (bypassing the CPU entirely), the container requires `CAP_SYS_ADMIN` and raw LXC limits for `unlimited` memory locking. We apply these via our declarative Infrastructure-as-Code (IaC) YAML profiles.
 
-> **Security Note:** This configuration escalates the container to `security.privileged: "true"`. While this breaks our strict unprivileged rule for the DMZ, this container sits behind the Caddy API gateway, has no inbound internet access (enforced by host UFW), and is dedicated solely to the AI engine. This is an accepted risk required to unlock bare-metal PCIe P2P DMA speeds.
-
 ```bash
 # Navigate to the infrastructure repository
 cd ~./runemind-infrastructure/configs/lxd/
@@ -941,7 +939,7 @@ lxc exec builder -- mkdir -p /workspace
 
 ### **3. The Compilation Pipeline (Standard Operating Procedure)**
 
-When a new base image (e.g., `papermc.yaml` or `velocity.yaml`) needs to be compiled or updated, execute the following pipeline from the bare-metal host. This pushes the definition into the clean room, compiles the cryptographic artifacts, and pulls them back to the host's local image registry.
+When a new base image (e.g., `papermc.yaml`) needs to be compiled or updated, execute the following pipeline from the bare-metal host. This pushes the definition into the clean room, compiles the cryptographic artifacts, and pulls them back to the host's local image registry.
 
 ```bash
 # Push the declarative image definition into the builder's workspace
@@ -964,6 +962,35 @@ rm -rf /tmp/lxd-builds
 
 # Verify the image is available for Fastify to clone
 lxc image list
+
+# Inject the papermc profile into the LXD database
+cat ./runemind-infrastructure/configs/lxd/profiles/papermc.yaml | lxc profile edit papermc
 ```
 
-_(Note: The `image-builder` container can be left running silently in the background, or stopped via `lxc stop image-builder` when not actively compiling to conserve resources)._
+_(Note: The `builder` container can be left running silently in the background, or stopped via `lxc stop builder` when not actively compiling to conserve resources)._
+
+### **4. Stateful Vault Management (The Golden Master)**
+
+_Objective: Populate the `is-plugins-vault` (The Golden Master) with global `.jar` files. To prevent polluting the bare-metal host and to preserve strict VFS idmapping (UID/GID shifting) on the ZFS dataset, we temporarily attach the dormant vault to our privileged `builder` container. This acts as a sterile utility vehicle to safely inject files and lock down unprivileged ownership._
+
+Execute the following pipeline to update or initialize the global plugins template:
+
+```bash
+# 1. Attach the dormant ZFS vault to the builder container dynamically
+lxc config device add builder global-plugins disk pool=is-nvme-pool source=is-plugins-vault path=/workspace/plugins
+
+# 2. Ensure the builder is running
+lxc start builder
+
+# 3. Populate the vault (Example: Pushing a .jar from the host)
+# Alternatively, you can `lxc exec builder -- bash` and use `wget` directly.
+lxc file push ./IonCore-v1.jar builder/workspace/plugins/
+
+# 4. CRITICAL: Enforce Unprivileged Ownership
+# The builder is privileged (files default to root). We MUST shift ownership
+# to UID 1000 so the unprivileged 'minecraft' service user can read them in the clones.
+lxc exec builder -- chown -R 1000:1000 /workspace/plugins
+
+# 5. Detach the vault to restore the builder to a pristine clean-room state
+lxc config device remove builder global-plugins
+```
