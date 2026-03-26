@@ -35,7 +35,7 @@ _Objective: Establish a secure host environment, enforce network boundaries, int
 
 ---
 
-## Phase 2: AI Infrastructure Containerization (Current Phase)
+## Phase 2: AI Infrastructure Containerization
 
 _Objective: Deploy the Qwen ~35B MoE LLM securely within an LXD container, utilizing GPU passthrough to maintain bare-metal PCIe efficiency. (Note: Shifted from SGLang to vLLM to bypass Ampere FP8 hardware limitations via the Marlin kernel)._
 
@@ -56,90 +56,48 @@ _Objective: Deploy the Qwen ~35B MoE LLM securely within an LXD container, utili
 
 ---
 
-## Phase 3: LXD Containerization & Configuration Management
+## Phase 3: LXD Containerization & Configuration Management (Current Phase)
 
-_Objective: Deploy a highly reproducible, stateless PaperMC base image and implement a GitOps-style "Configuration Drift Management" system. This phase eliminates environment variable limitations and establishes Postgres as the absolute source of truth for all container states._
+_Objective: Deploy a highly reproducible, stateless PaperMC base image and implement a GitOps-style "Configuration Drift Management" system. This phase eliminates environment variable limitations and establishes Postgres as the absolute source of truth for all container states, strictly decoupling ephemeral compute from persistent ZFS storage._
 
-- **Network Fencing & Security:** Ensure the `lxdbr0` bridge routes correctly through `bond0` for NAT. Enforce hypervisor-level IP/MAC spoofing protection (`security.ipv4_filtering=true`). Host UFW drops internal scanning while allowing local access to the AI container (`10.10.10.50`).
-- **Container Architecture:**
-  - Container 1: Velocity Proxy (Static IP on `lxdbr0`).
-  - Containers 2-N: PaperMC backend servers (Ephemeral, mounting Custom Storage Volumes).
+### **Completed Foundations (The Stateless Edge)**
 
-### **3.1. The "Dumb" Base Image (Distrobuilder)**
-
-To maintain an immutable "Edge PaaS" architecture, we abandon manual container snapshots and `cloud-init` scripts. Instead, we use **Distrobuilder** to compile a pristine, declarative `minecraft-base` image from scratch.
-
-- **Declarative YAML:** The image is defined in a single Distrobuilder YAML file containing the Ubuntu 24.04 rootfs, OpenJDK 21, the PaperMC `.jar`, and an unprivileged `minecraft` service user.
-- **Zero-Logic Entrypoint:** The container contains **no bash scripts** to parse environment variables. The `systemd` service executes Java directly, natively loading dynamic JVM arguments via an `EnvironmentFile=-/etc/ion/jvm.env` pushed by Fastify before boot. Standard configurations (e.g., `server.properties`) are injected directly to disk, completely bypassing command-line parsing.- **Result:** The image is cryptographically verifiable, boots in milliseconds, and leaves zero artifact history (like bash logs or old SSH keys).
-
-### **3.2. The LXD File API (Data-Plane Push Model)**
-
-Instead of passing complex configurations and secrets via environment variables (which are insecure, leak easily into crash logs, and lack type safety), Fastify injects configuration files directly into the container's disk _before_ it boots. This establishes a "Data-Plane Push Model" utilizing the LXD File API over our mTLS bridge.
-
-#### **3.2.1. Client Transport Refactoring (Modularization)**
-
-As the LXD API integration grows, the monolithic `client.ts` file has become a bottleneck. To maintain a clean architecture, the LXD client is broken apart into a dedicated `./client` namespace:
-
-- **`./client/index.ts`**: The core `LxdClient` class that initializes the `undici` agent, manages the WebSocket event stream, and aggregates the sub-modules.
-- **`./client/instances.ts`**: Handles standard JSON-enveloped requests for power states, creation, and deletion.
-- **`./client/files.ts`**: A dedicated `LxdFileClient` that strictly maps to RESTful HTTP verbs (`get`, `post`, `delete`). Crucially, this module bypasses standard JSON parsing for `get` requests, as the LXD File API returns raw byte buffers (e.g., binary `.jar` files or raw `.yaml` text).
-
-#### **3.2.2. Hybrid Identity & Secrets Delivery**
-
-We utilize a strict separation of concerns for container initialization:
-
-- **Immutable Identity (LXD Env Vars):** The container's core identity (e.g., `ION_TENANT_ID`) is injected via LXD configuration environment variables. This is immutable from inside the container and allows the Java engine to instantly discover its routing prefix via `System.getenv()`.
-- **Cryptographic Secrets (LXD File API):** Highly sensitive data, such as scoped NATS tokens (`nats.cred`), are pushed directly to the disk via the File API. This keeps secrets entirely out of the process environment space.
-
-#### **3.2.3. Unprivileged Execution & Permissions**
-
-When pushing files via the `post` method, the transport layer explicitly injects `X-LXD-*` headers. Files are written with strict permissions (e.g., `X-LXD-mode: 0600`, `X-LXD-uid: 1000`, `X-LXD-gid: 1000`) ensuring they are owned exclusively by the unprivileged `minecraft` service user defined in our Distrobuilder base image.
-
-### **3.3. Two-Tiered Filesystem Architecture**
-
-To securely manage container files from the Fastify backend, the `@ionsignal/ionhost` package implements a two-tiered service approach, separating raw disk access from structured configuration logic.
-
-#### **3.3.1. Tier 1: General `FileService` (Raw Disk Access & Boundary)**
-
-This tier acts as a secure, RESTful proxy to the `LxdFileClient` (`get`, `post`, `delete`) and enforces strict access boundaries.
-
-- **Chroot Jail & Sanitization:** Implements `path.posix.normalize` to resolve user-provided paths against a hardcoded container root (e.g., `/opt/minecraft`). This strictly prevents directory traversal attacks (e.g., `../../../../etc/shadow`) before the request ever reaches the LXD hypervisor.
-- **Ownership Verification:** Validates against Postgres that the requesting user actually owns the target LXD instance before executing any I/O.
-- **UI Integration:** Powers the web-based File Explorer in the Vue UI, allowing admins to stream logs, upload plugins, or delete crash reports without touching the database.
-
-#### **3.3.2. Tier 2: `ManagedConfigEngine` (State Management & Zod)**
-
-A specialized domain layer that sits on top of the `FileService` to handle critical, database-tracked files (e.g., `server.properties`, `paper.yml`).
-
-- **Postgres as the Source of Truth:** Managed configurations are stored in a `managed_files` database table as structured `JSONB`, alongside a `SHA-256` hash of the compiled file.
-- **AST Compilation & Zod Reflection:** When pushing a config, this engine utilizes an Abstract Syntax Tree (AST) parser to convert the Postgres `JSONB` into valid `.properties` or `.yaml` formats. During compilation, it dynamically extracts `.describe()` metadata from the shared Zod schemas and injects them as physical `# comments` into the resulting file.
-- **Drift Detection:** By comparing the live file's hash (fetched via `FileService.get`) against the database hash, the system can instantly alert the Vue UI if a user has manually altered a file inside the container via SSH, allowing for immediate reconciliation.
-
-#### 3.3.1 **Separation of Concerns:**
-
-    - `InstanceService` = Power state (Start/Stop).
-    - `FileService` = Disk state (Read/Write/Upload).
-    - `ConfigEngine` = Logic state (Zod/AST/Postgres Drift).
-
-### **3.4. Configuration Drift Management & Zod Reflection**
-
-This system ensures that manual changes made inside a container (e.g., via SSH) are instantly detected and can be reconciled with the web UI.
-
-- **Postgres as Source of Truth:** Managed files are tracked in a `managed_files` database table, storing the structured data (`JSONB`) and a cryptographic hash (`SHA-256`) of the compiled file.
-- **"Zod as Documentation":** Shared Zod schemas define the configuration structure and utilize `.describe()` to store human-readable documentation (e.g., `z.boolean().describe("Allows Nether travel")`).
-- **AST Compilation:** When Fastify pushes a config to LXD, it uses an Abstract Syntax Tree (AST) parser to convert the JSONB into `.properties` or `.yaml`. During this process, it dynamically injects the Zod `.describe()` strings as physical `# comments` into the file.
-- **The Audit Loop (Drift Detection):**
-  1. Fastify pulls the live file from the LXD container via the `FileService`.
-  2. It hashes the live file and compares it against the `SHA-256` hash stored in Postgres.
-  3. If a mismatch occurs, the Vue UI displays a "Drift Detected" warning, allowing the admin to either **Overwrite the Container** (push DB state) or **Import to DB** (parse the live file into JSONB and update Postgres).
-
-### **3.5. Dynamic UI Generation**
-
-Because the Vue 3 frontend and the Fastify backend share the exact same Zod schemas, the frontend requires almost zero hardcoded forms.
-
-- A recursive `<SchemaRenderer>` Vue component iterates over the Zod object.
+- **[✓] Network Fencing & Security:** Host UFW configured. `security.ipv4_filtering=true` enforced on the `lxdbr0` bridge to prevent IP/MAC spoofing. (Note: Velocity Proxy will operate as Container 1 with a static IP on this bridge for upstream EFG port-forwarding).
+- **[✓] Immutable "Dumb" Base Image (Distrobuilder):** Abandoned `cloud-init` for a declarative `papermc` base image (Ubuntu 24.04, OpenJDK 21, PaperMC). Uses a "Zero-Logic Entrypoint" (systemd directly executes Java via injected `jvm.env`), booting in milliseconds with zero artifact history.
+- **[✓] LXD File API Transport (Data-Plane Push Model):** Refactored the monolithic LXD client into modular RESTful namespaces (`instances`, `files`). Cryptographic secrets and configs are pushed directly to disk via the File API with strict unprivileged ownership headers (`X-LXD-uid: 1000`).
+- **[✓] Tier 1 Filesystem Architecture (Raw I/O):** Built `FileService` as a secure proxy to the LXD File API. It enforces chroot jails (`/opt/minecraft`) to prevent traversal attacks and verifies Postgres ownership before allowing read/write/delete operations.
 
 ---
+
+### **Stateful Orchestration & Drift**
+
+- **[ ] 3.1. Stateful Volume Orchestration (The CSI Pattern)**
+  _Treat Fastify as a Container Storage Interface (CSI). LXD profiles remain strictly stateless. All tenant-specific ZFS datasets are dynamically provisioned, cloned, and attached by the backend during the deployment lifecycle._
+  - **Expand LXD Client (`storage.ts`):** Implement a new sub-module to interface with `/1.0/storage-pools/{pool}/volumes` to handle volume creation, deletion, and ZFS cloning (`copy`).
+  - **The Provisioning Pipeline (`InstanceService.create`):** Refactor the creation logic into a 5-step orchestration pipeline:
+    1.  **Compute:** Initialize the offline container (`tenant-123`) from the `papermc` image.
+    2.  **Provision State:** Create empty ZFS volumes for `world` and `config`. Dynamically execute a ZFS CoW Clone of `is-plugins-vault` -> `tenant-123-plugins`.
+    3.  **Attach State:** Map the volumes as `disk` devices to the container at `/opt/minecraft/...`.
+    4.  **Inject Configs:** Push `server.properties` and `jvm.env` via the `FileService`.
+    5.  **Power On:** Start the container.
+  - **ZFS Quota Enforcement:** Apply strict size limits (e.g., `size=10GiB`) to tenant `world` volumes during API creation to prevent runaway chunk generation from crashing the host NVMe pool.
+  - **Lifecycle & Teardown Policy:** Define the `InstanceService.delete` behavior (e.g., flag volumes in Postgres as "Archived" for a 30-day grace period instead of instant destruction).
+  - **Golden Master Rebase Strategy:** Engineer a mechanism to push updates from the `is-plugins-vault` (e.g., a new global `.jar`) to existing tenant clones that have already diverged.
+
+- **[ ] 3.2. Tier 2 Filesystem Architecture (`ManagedConfigEngine`)**
+  _A specialized domain layer sitting on top of the `FileService` to handle critical, database-tracked files (e.g., `server.properties`, `paper.yml`)._
+  - **Postgres as Source of Truth:** Store managed configurations in a `managed_files` table as structured `JSONB`, alongside a `SHA-256` hash of the compiled file.
+  - **AST Compilation & Zod Reflection:** Utilize an Abstract Syntax Tree (AST) parser to convert JSONB into valid `.properties` or `.yaml` formats. Dynamically inject Zod `.describe()` metadata as physical `# comments` into the resulting file during push.
+
+- **[ ] 3.3. Configuration Drift Management (The Audit Loop)**
+  _Ensure manual changes made inside a container (e.g., via SSH) are instantly detected and reconciled with the Control Plane._
+  - Fastify pulls the live file hash from the LXD container via `FileService`.
+  - Compares the live hash against the `SHA-256` hash stored in Postgres.
+  - Mismatches trigger a "Drift Detected" warning in the Vue UI, prompting the admin to either **Overwrite Container** (push DB state) or **Import to DB** (parse live file into JSONB and update Postgres).
+
+- **[ ] 3.4. Dynamic UI Generation**
+  _Leverage shared Zod schemas between the Vue 3 frontend and Fastify backend to eliminate hardcoded forms._
+  - Build a recursive `<SchemaRenderer>` Vue component to iterate over Zod objects and automatically generate typed configuration forms (booleans to toggles, enums to selects, strings to inputs) utilizing the `.describe()` metadata for tooltips.
 
 ## Phase 4: Edge Routing & SSL Termination
 
