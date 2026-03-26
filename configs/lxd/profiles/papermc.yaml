@@ -6,7 +6,7 @@ config:
   security.nesting: 'false'
 
   # Hypervisor-level resource limits
-  limits.cpu: '2'
+  limits.cpu: '4'
   limits.memory: '4GB'
 
   # Prevent ZFS I/O storms on bare-metal boot.
@@ -25,7 +25,7 @@ devices:
   # Ephemeral Root Filesystem (Stateless OS)
   root:
     path: /
-    pool: default
+    pool: is-nvme-pool
     type: disk
 
   # =====================================================================
