@@ -1,5 +1,6 @@
+# Read only blueprint
 name: default
-description: "Ephemeral OS Drive Pool"
+description: 'Ephemeral OS Drive Pool'
 driver: dir
 config:
   source: /var/snap/lxd/common/lxd/storage-pools/default

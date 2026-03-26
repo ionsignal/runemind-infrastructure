@@ -1,5 +1,6 @@
+# Read only blueprint
 name: is-nvme-pool
-description: "High-Performance ZFS NVMe Pool (AI & Games)"
+description: 'High-Performance ZFS NVMe Pool (AI & Games)'
 driver: zfs
 config:
   source: is-nvme-pool
