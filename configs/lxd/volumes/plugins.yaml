@@ -1,0 +1,3 @@
+description: 'Read-Only Template for Global PaperMC Plugins'
+config:
+  security.shifted: 'true' # Optional: Helps with unprivileged UID/GID mapping if needed
