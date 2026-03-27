@@ -17,7 +17,7 @@ devices:
   # Network Interface
   eth0:
     name: eth0
-    network: lxdbr0
+    network: incusbr0
     type: nic
     security.ipv4_filtering: 'true'
     security.mac_filtering: 'true'

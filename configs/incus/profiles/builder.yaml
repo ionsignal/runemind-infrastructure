@@ -13,7 +13,7 @@ devices:
   # Standard network attachment to reach the internet (apt, wget) and the host LXD API
   eth0:
     name: eth0
-    network: lxdbr0
+    network: incusbr0
     type: nic
 
   # Override the default pool: Force the builder's ephemeral OS and workspace

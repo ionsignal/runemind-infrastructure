@@ -20,7 +20,7 @@ devices:
   # Network Interface
   eth0:
     name: eth0
-    network: lxdbr0
+    network: incusbr0
     type: nic
     ipv4.address: 10.10.10.50
     security.ipv4_filtering: 'true'

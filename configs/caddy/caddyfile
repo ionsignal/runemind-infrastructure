@@ -1,12 +1,10 @@
 # /etc/caddy/Caddyfile
-
 # Global configuration
 {
 	email admin@ionsignal.com
 	# UNCOMMENT DURING INITIAL TESTING TO AVOID LETS ENCRYPT RATE LIMITS
 	# acme_ca https://acme-staging-v02.api.letsencrypt.org/directory
 }
-
 # Generate Wildcard Certificate via ACME-DNS Delegation
 *.ionsignal.com {
 	tls {
@@ -35,7 +33,7 @@
 			admin $2a$14$yEU3mdzE9W8NUTt7ke270ez./YsWYK8Grlwv8woLJD.S6RBAM6qhq
 			dev $2a$14$y8vpwMOPy5cdud1IwhlsRuAPPPSk/xGku1jC7DuP7Kf6eJhtd.0k.
 		}
-		# Proxy to LXD and present the Client Certificate
+		# Proxy to Incus and present the Client Certificate
 		reverse_proxy 10.10.10.1:8443 {
 			transport http {
 				tls_insecure_skip_verify
