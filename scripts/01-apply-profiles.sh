@@ -50,5 +50,10 @@ for profile in "${PROFILES[@]}"; do
     else
         echo "   WARNING: configs/incus/profiles/$profile.yaml not found, skipping edit."
     fi
+    # Inject cloud-init user-data if an init file exists
+    if [ -f "configs/incus/init/$profile.yaml" ]; then
+        echo "   Injecting cloud-init configuration for '$profile'..."
+        incus profile set "$profile" user.user-data - < "configs/incus/init/$profile.yaml"
+    fi
 done
 echo "Incus Sync Complete!"
