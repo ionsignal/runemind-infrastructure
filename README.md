@@ -2,21 +2,19 @@
 
 ## Base OS Installation & UEFI Initialization
 
-### **1. UEFI & NVRAM Baseline**
+### **0. UEFI & NVRAM Baseline**
 
 - **Boot Mode:** UEFI Only (Disable Legacy/CSM).
 - **Secure Boot:** Disabled (Required for NVIDIA driver/CUDA compilation).
 - **NVRAM Cleanup:** `sudo efibootmgr` -> delete stale entries (e.g., `sudo efibootmgr -b XXXX -B`).
 - **OS Target:** Ubuntu 24.04 LTS on 250GB NVMe (`ext4`, **No LVM**).
 
-### **2. Static Network Configuration (Netplan)**
+### **1. Static Network Configuration (Netplan)**
 
 To prevent ARP flux on the DMZ switch and provide a highly available, stable default gateway for the LXD containers, the dual 1GbE interfaces are bonded using Active-Backup (Mode 1). This ensures zero-downtime failover without requiring 802.3ad (LACP) configuration on the upstream EFG.
 
-**1. Define the Bond Configuration**
-
 ```bash
-sudo nano /etc/netplan/50-cloud-init.yaml
+sudo vim /etc/netplan/50-cloud-init.yaml
 ```
 
 Replace the default DHCP configuration with the static bond assignment:
@@ -50,7 +48,7 @@ network:
         mii-monitor-interval: 100
 ```
 
-**2. Safely Apply and Verify**
+### **2. Safely Apply and Verify**
 
 Apply the configuration using `try` to prevent lockouts during the interface transition.
 
@@ -107,7 +105,7 @@ sudo ufw default deny routed
 # ==========================================
 
 # Priority Allows: Written first so they naturally become Rule 1 and Rule 2
-sudo ufw allow out to 10.10.10.0/24 comment 'Priority: Allow Host to LXD subnet'
+sudo ufw allow out to 10.10.10.0/24 comment 'Priority: Allow Host to Incus subnet'
 sudo ufw allow out to 172.20.2.0/24 comment 'Priority: Allow local DMZ subnet & Gateway'
 
 # Block host from reaching any other internal networks (Zero-Trust)
@@ -124,22 +122,22 @@ sudo ufw allow from 172.20.1.0/24 to any port 22 proto tcp comment 'Allow SSH Ma
 sudo ufw allow from 13.52.160.148 to any port 22 proto tcp comment 'Allow SSH AWS Bastion'
 sudo ufw allow from 172.20.3.158 to any port 22 proto tcp comment 'Allow SSH Home Laptop'
 
-# HTTPS (Port 443) - Caddy / LXD UI Access
+# HTTPS (Port 443) - Caddy / Incus UI Access
 sudo ufw allow from 172.20.1.0/24 to any port 443 proto tcp comment 'Allow HTTPS Management'
 sudo ufw allow from 172.20.3.0/24 to any port 443 proto tcp comment 'Allow HTTPS Home'
 
-# Allow the Fastify Control Plane (TCP 8443) to reach the LXD API, Deny others
-sudo ufw allow in on lxdbr0 from 10.10.10.20 to 10.10.10.1 port 8443 proto tcp comment 'Allow Fastify to LXD API'
-sudo ufw deny in on lxdbr0 from 10.10.10.0/24 to 10.10.10.1 port 8443 proto tcp comment 'Deny Game Servers to LXD API'
+# Allow the Fastify Control Plane (TCP 8443) to reach the Incus API, Deny others
+sudo ufw allow in on incusbr0 from 10.10.10.20 to 10.10.10.1 port 8443 proto tcp comment 'Allow Fastify to Incus API'
+sudo ufw deny in on incusbr0 from 10.10.10.0/24 to 10.10.10.1 port 8443 proto tcp comment 'Deny Game Servers to Incus API'
 
 # Explicitly allow DHCP (UDP 67) from containers to the host
-sudo ufw allow in on lxdbr0 to any port 67 proto udp comment 'LXD DHCP'
+sudo ufw allow in on incusbr0 to any port 67 proto udp comment 'Incus DHCP'
 
 # Explicitly allow DNS (TCP/UDP 53) from containers to the host
-sudo ufw allow in on lxdbr0 to any port 53 proto udp comment 'LXD DNS UDP'
-sudo ufw allow in on lxdbr0 to any port 53 proto tcp comment 'LXD DNS TCP'
+sudo ufw allow in on incusbr0 to any port 53 proto udp comment 'Incus DNS UDP'
+sudo ufw allow in on incusbr0 to any port 53 proto tcp comment 'Incus DNS TCP'
 
-# Game Ingress (LXD Proxy Device Architecture)
+# Game Ingress (Incus Proxy Device Architecture)
 sudo ufw allow in on bond0 to any port 25565 proto tcp comment 'Allow Inbound Velocity Proxy'
 
 # ==========================================
@@ -147,12 +145,12 @@ sudo ufw allow in on bond0 to any port 25565 proto tcp comment 'Allow Inbound Ve
 # ==========================================
 
 # Fencing: Prevent compromised containers from scanning internal networks
-sudo ufw route deny in on lxdbr0 out on bond0 to 172.16.0.0/12 comment 'Block LXD outbound to Internal 172.x'
-sudo ufw route deny in on lxdbr0 out on bond0 to 10.0.0.0/8 comment 'Block LXD outbound to Internal 10.x'
-sudo ufw route deny in on lxdbr0 out on bond0 to 192.168.0.0/16 comment 'Block LXD outbound to Internal 192.168.x'
+sudo ufw route deny in on incusbr0 out on bond0 to 172.16.0.0/12 comment 'Block Incus outbound to Internal 172.x'
+sudo ufw route deny in on incusbr0 out on bond0 to 10.0.0.0/8 comment 'Block Incus outbound to Internal 10.x'
+sudo ufw route deny in on incusbr0 out on bond0 to 192.168.0.0/16 comment 'Block Incus outbound to Internal 192.168.x'
 
 # Internet Access: Allow containers to reach the public internet
-sudo ufw route allow in on lxdbr0 out on bond0 comment 'Allow LXD Outbound Internet'
+sudo ufw route allow in on incusbr0 out on bond0 comment 'Allow Incus Outbound Internet'
 
 # ==========================================
 # 6. ENABLE AND APPLY
@@ -230,19 +228,7 @@ sudo zpool create -f \
 sudo zpool status is-nvme-pool
 ```
 
-#### **Step 5.4: Hand the Pool to LXD**
-
-Now that the pool is perfectly tuned for our hardware, we instruct LXD to take full ownership of it. LXD will register it in its database and automatically configure the necessary internal datasets for containers and custom volumes.
-
-```bash
-# Tell LXD to consume the existing 'is-nvme-pool' ZFS pool
-lxc storage create is-nvme-pool zfs source=is-nvme-pool
-
-# Verify LXD sees the new storage pool
-lxc storage list
-```
-
-#### **Step 5.5: Clamp the ZFS ARC (Memory Protection)**
+#### **Step 5.4: Clamp the ZFS ARC (Memory Protection)**
 
 By default, ZFS will consume up to 50% of the host's system RAM for its read cache (ARC). To ensure the Minecraft Java Heaps and the AI Inference engine (vLLM) never experience Out-Of-Memory (OOM) kills, we must strictly clamp the ARC size to 4GB.
 
@@ -363,7 +349,7 @@ sudo systemctl status caddy
 
 ```
 
-## Micro-CA [acme-dns] Deployment on AWS (ARM64)
+## Micro-CA Deployment on AWS (ARM64)
 
 ### **AWS Security Group (Firewall) Prep**
 
@@ -386,7 +372,7 @@ Before installing the software, we must tell the internet that your AWS instance
     - **Value:** `acme-dns.ionsignal.com`
     - **TTL:** 300 (simple policy)
 
-### Install [acme-dns] on Micro-CA
+### Install TXT Record Managment on Micro-CA
 
 To securely delegate Let's Encrypt DNS challenges, we must install the `acme-dns` service on the isolated AWS ARM64 instance. This avoids storing highly privileged AWS Route 53 IAM credentials on the on-premise DMZ host.
 
@@ -561,7 +547,7 @@ sudo systemctl restart acme-dns
 
 Then go into the caddy acme-dns config file and update it using your registration from acme-dns.
 
-#### 6. Route 53 CNAME for `ionsignal.com`
+#### **6. Route 53 CNAME for `ionsignal.com`**
 
 Go to your AWS Route 53 Console, open the Hosted Zone for **`ionsignal.com`**, and create this record:
 
@@ -569,28 +555,47 @@ Go to your AWS Route 53 Console, open the Hosted Zone for **`ionsignal.com`**, a
 - **Record Type:** `CNAME`
 - **Value:** `[uuid].auth.ionsignal.com` _(Paste your exact `fulldomain` string here)._
 
-## LXD Installation & Zero-Trust UI Proxy
+## Incus Installation & Zero-Trust UI Proxy
 
-_Objective: Deploy the LXD 6.x LTS container hypervisor. To maintain strict Zero-Trust boundaries, LXD is bound exclusively to `localhost`. Caddy acts as an authenticated mTLS bridge, terminating the wildcard SSL and protecting the Web UI with Basic Authentication._
+_Objective: Deploy the Incus container hypervisor. To maintain strict Zero-Trust boundaries, Incus is bound exclusively to `localhost`. Caddy acts as an authenticated mTLS bridge, terminating the wildcard SSL and protecting the Web UI with Basic Authentication._
 
-### **1. Enforce LXD 6.x LTS Track**
+### **1. Install Incus (Zabbly Stable Repository)**
 
-Ubuntu 24.04 defaults to the 5.21 track. We must force the upgrade to the modern 6.x LTS track to ensure long-term support and access to the modern mTLS UI.
+Install Incus natively via `apt` using the official Zabbly repository. This ensures a cleaner host environment, avoids loop-device clutter, and provides the most up-to-date stable releases.
 
 ```bash
-# Verify current version
-lxd --version
+# 1. Create the keyrings directory if it doesn't exist
+sudo mkdir -p /etc/apt/keyrings
 
-# Refresh snap to the 6.x LTS stable channel
-sudo snap refresh lxd --channel=6/stable
+# 2. Download the Zabbly repository signing key
+sudo curl -fsSL https://pkgs.zabbly.com/key.asc -o /etc/apt/keyrings/zabbly.asc
 
-# Verify upgrade success
-lxd --version
+# 3. Add the Zabbly Incus Stable repository dynamically based on OS codename (noble)
+cat <<EOF | sudo tee /etc/apt/sources.list.d/zabbly-incus-stable.sources
+Enabled: yes
+Types: deb
+URIs: https://pkgs.zabbly.com/incus/stable
+Suites: $(. /etc/os-release && echo ${VERSION_CODENAME})
+Components: main
+Architectures: $(dpkg --print-architecture)
+Signed-By: /etc/apt/keyrings/zabbly.asc
+EOF
+
+# 4. Update apt and install Incus alongside the Canonical UI
+sudo apt-get update
+sudo apt-get install -y incus incus-ui-canonical
+
+# 5. Grant your user full access to the Incus socket
+sudo usermod -aG incus-admin $USER
+newgrp incus-admin
+
+# Verify the installation
+incus --version
 ```
 
 ### **2. Host Network Preparation**
 
-LXD containers (like the Minecraft servers) rely on the host's IP for outbound NAT. IP forwarding must be permanently enabled at the kernel level before LXD builds its bridge.
+Incus containers rely on the host's IP for outbound NAT. IP forwarding must be permanently enabled at the kernel level before Incus builds its network bridge.
 
 ```bash
 # Enable IPv4 forwarding permanently
@@ -602,61 +607,64 @@ sudo sysctl -p
 
 ### **3. Minimal Initialization (Deferred Storage)**
 
-To isolate variables and test the network proxy, we initialize LXD using a minimal `dir` (directory) backend. The raw SATA SSDs (ZFS pool) will be attached later in Phase 3.
+To isolate variables and test the network proxy, we initialize Incus without any storage pools. The optimized NVMe ZFS pools will be attached later.
 
 Run the initialization wizard:
 
 ```bash
-sudo lxd init
+sudo incus admin init
 ```
 
-Provide the following exact answers to bind LXD securely to localhost and disable IPv6:
+Provide the following exact answers to bind Incus securely to localhost, establish the `incusbr0` bridge, and disable IPv6:
 
-- **Would you like to use LXD clustering?** `no`
-- **Do you want to configure a new storage pool?** `yes`
-- **Name of the new storage pool:** `default`
-- **Name of the storage backend to use:** `dir` _(Uses a simple folder on the OS drive)_
-- **Would you like to connect to a MAAS server?** `no`
+- **Would you like to use Incus clustering?** `no`
+- **Do you want to configure a new storage pool?** `no`
 - **Would you like to create a new local network bridge?** `yes`
-- **What should the new bridge be called?** `lxdbr0`
-- **What IPv4 address should be used?** `auto`
+- **What should the new bridge be called?** `incusbr0`
+- **What IPv4 address should be used?** `10.10.10.1/24`
+- **Would you like to NAT IPv4 traffic on your bridge?** `yes`
 - **What IPv6 address should be used?** `none` _(Crucial: Disables IPv6 in the DMZ)_
-- **Would you like the LXD server to be available over the network?** `yes`
-- **Address to bind LXD to (not including port):** `127.0.0.1` _(Forces local-only access)_
-- **Port to bind LXD to:** `8443`
+- **Would you like the Incus server to be available over the network?** `yes`
+- **Address to bind Incus to (not including port):** `127.0.0.1` _(Crucial: Change this Later)_
+- **Port to bind Incus to:** `8443`
 - **Trust password for new clients:** `[Enter a secure password]`
 - **Would you like stale cached images to be updated automatically?** `yes`
-- **Would you like a YAML "lxd init" preseed to be printed?** `no`
+- **Would you like a YAML "incus init" preseed to be printed?** `no`
 
-### **4. Lock the Internal Network Subnet (Velocity Prerequisite)**
+### **4. Lock the Internal Network Subnet and Attach the ZFS NVMe Pool**
 
-By default, LXD generates a random IPv4 subnet for the `lxdbr0` bridge. To support host-level UFW port forwarding and strict Velocity proxy routing (which requires hardcoded backend IPs), must lock the bridge to a static, predictable CIDR block (`10.10.10.1/24`). We also explicitly disable IPv6 to prevent routing leaks in the DMZ.
+Because we hardcoded the `10.10.10.1/24` CIDR block during initialization, the network is already securely established. However, we must still restrict the DHCP pool to leave `.2` through `.99` available for Static IPs (Velocity, AI, Fastify).
 
 ```bash
-# Lock the bridge IP and define the container CIDR block
-lxc network set lxdbr0 ipv4.address 10.10.10.1/24
+# Shift the API bind from localhost to the newly created bridge IP
+sudo incus config set core.https_address 10.10.10.1:8443
 
-# Restrict the DHCP pool to leave .2 through .99 available for Static IPs (Velocity, AI)
-lxc network set lxdbr0 ipv4.dhcp.ranges 10.10.10.100-10.10.10.200
+# Restrict the DHCP pool to leave room for Static IPs
+incus network set incusbr0 ipv4.dhcp.ranges 10.10.10.100-10.10.10.200
 
-# Explicitly disable IPv6 on the bridge
-lxc network set lxdbr0 ipv6.address none
-lxc network set lxdbr0 ipv6.nat false
+# Explicitly disable IPv6 NAT routing on the bridge (Defense in Depth)
+incus network set incusbr0 ipv6.nat false
 
 # Verify the network is locked down
-lxc network show lxdbr0
+incus network show incusbr0
+
+# Tell LXD to consume the existing 'is-nvme-pool' ZFS pool
+incus storage create is-nvme-pool zfs source=is-nvme-pool
+
+# Verify LXD sees the new storage pool
+incus storage list
 ```
 
 ### **5. The Proxy Authentication Bridge (mTLS)**
 
-LXD 6.x requires either SSO (OIDC) or a Client Certificate (mTLS) for UI access. Because Caddy (a Layer 7 proxy) cannot pass a browser's client certificate through to the backend, we must give Caddy its own master certificate to authenticate to LXD automatically, and then protect Caddy's front-door with a password.
+Incus requires a Client Certificate (mTLS) for API and UI access. Because Caddy (a Layer 7 proxy) cannot pass a user's browser-based client certificate through to the backend, we must give Caddy its own master certificate to authenticate to Incus automatically, and then protect Caddy's front-door with Basic Authentication.
 
-**A. Generate Caddy's Client Certificate**
+#### **5.1. Generate Caddy's Client Certificate**
 
 ```bash
 # Create a secure directory for the keys
-sudo mkdir -p /etc/caddy/lxd-certs
-cd /etc/caddy/lxd-certs
+sudo mkdir -p /etc/caddy/incus-certs
+cd /etc/caddy/incus-certs
 
 # Generate a 10-year client certificate for the Caddy daemon
 sudo openssl req -x509 -newkey rsa:4096 -nodes -keyout caddy.key -out caddy.crt -days 3650 -subj "/CN=caddy-proxy"
@@ -666,45 +674,28 @@ sudo chown caddy:caddy caddy.key caddy.crt
 sudo chmod 600 caddy.key
 ```
 
-**B. Inject Certificate into LXD Trust Store**
+#### **5.2. Inject Certificate into Incus Trust Store**
 
 ```bash
-# Tell LXD to permanently trust Caddy's new certificate
-lxc config trust add /etc/caddy/lxd-certs/caddy.crt --name caddy-proxy
+# Tell Incus to permanently trust Caddy's client certificate using the new add-certificate command
+incus config trust add-certificate /etc/caddy/incus-certs/caddy.crt --name caddy-proxy
 
-# Verify it was added successfully
-lxc config trust list
+# Verify it was added successfully (You should see 'caddy-proxy' listed)
+incus config trust list
 ```
 
-**C. Generate BasicAuth Password for the Web UI**
-Generate a `bcrypt` hashed password. This will be the password you type into the browser prompt to access the LXD dashboard.
+#### **5.3. Generate BasicAuth Password for the Web UI**
+
+Generate a `bcrypt` hashed password. This will be the password you type into the browser prompt to access the Incus dashboard.
 
 ```bash
 caddy hash-password
 # Copy the resulting hash (e.g., $2a$14$...)
 ```
 
-**D. Update Caddyfile**
-Edit `/etc/caddy/Caddyfile` and update the `@lxd` block to implement the BasicAuth and mTLS bridge:
+#### **5.4. Update Caddyfile**
 
-```caddyfile
-    # Route LXD UI & API Traffic
-    @lxd host lxd.ionsignal.com
-    handle @lxd {
-        # Protect the URL with your hashed password
-        basic_auth {
-            admin <PASTE_YOUR_BCRYPT_HASH_HERE>
-        }
-
-        # Proxy to LXD and present the Client Certificate
-        reverse_proxy 127.0.0.1:8443 {
-            transport http {
-                tls_insecure_skip_verify
-                tls_client_auth /etc/caddy/lxd-certs/caddy.crt /etc/caddy/lxd-certs/caddy.key
-            }
-        }
-    }
-```
+Update `/etc/caddy/caddyfile` (see config file) and update the proxy block to implement the BasicAuth and mTLS bridge.
 
 Reload Caddy to apply the changes:
 
@@ -713,31 +704,15 @@ sudo caddy fmt --overwrite /etc/caddy/Caddyfile
 sudo systemctl reload caddy
 ```
 
-_(You can now access the fully authenticated UI at `https://lxd.ionsignal.com`)_
+_(You can now access the fully authenticated UI at `https://incus.ionsignal.com`)_
 
-### **6. Declarative Profile Management**
-
-To maintain Infrastructure-as-Code (IaC) principles, LXD container profiles (network attachments, disk mapping, limits) are stored as YAML files in the workspace.
-
-To inject or update an LXD profile directly from a YAML configuration file, use the following declarative command:
-
-```bash
-# Replace [profile] with the target profile name (e.g., minecraft-base)
-cat ./runemind-infrastructure/configs/lxd/[profile].yaml | lxc profile edit [profile]
-
-# Verify the changes were applied
-lxc profile show [profile]
-```
-
-_(Note: If the profile does not exist yet, you must first create it using `lxc profile create [profile]` before running the edit command)._
-
-### **7. Host NVIDIA Driver Preparation (Production LTS / Headless)**
+## Host NVIDIA Driver Preparation (Production LTS / Headless)
 
 To support current RTX A4000s and future-proof the host for bleeding-edge hardware (e.g., RTX 6000 Ada/Pro), we utilize the official NVIDIA Network Repository.
 
 We utilize NVIDIA's modern compute-only packaging and explicitly pin the system to the **580 Production Branch**. This avoids known power-state and clock-throttling bugs in the volatile 590/595 feature branches, ensuring zero-latency token streaming for SGLang/vLLM. To maintain strict host hygiene in the DMZ, we **do not** install the CUDA Toolkit, Python, or PyTorch on the bare metal.
 
-#### **A. Add the Modern NVIDIA CUDA Keyring (v1.1)**
+### **1. Add the Modern NVIDIA CUDA Keyring (v1.1)**
 
 This dynamically detects your OS version (Ubuntu 24.04) and adds the official NVIDIA repository to your `apt` sources.
 
@@ -753,7 +728,7 @@ sudo dpkg -i cuda-keyring_1.1-1_all.deb
 sudo apt update
 ```
 
-#### **B. Pin the Branch & Install Compute-Only Drivers**
+### **2. Pin the Branch & Install Compute-Only Drivers**
 
 We lock `apt` to the 580 branch and install only the headless compute libraries and DKMS. DKMS (Dynamic Kernel Module Support) is mandatory; it ensures the proprietary NVIDIA kernel modules automatically rebuild if Ubuntu updates the host's kernel.
 
@@ -768,7 +743,7 @@ sudo apt install -y libnvidia-compute-580 nvidia-utils-580 nvidia-dkms-580
 sudo reboot
 ```
 
-#### **C. Post-Reboot Verification & Performance Tuning (The Source of Truth)**
+### **3. Post-Reboot Verification & Performance Tuning (The Source of Truth)**
 
 Once the server is back online, verify the PCIe devices are initialized. We also enable Persistence Mode to prevent the GPUs from dropping into low-power P-States when idle, ensuring the AI engine can instantly respond to API requests.
 
@@ -786,7 +761,7 @@ sudo nvidia-smi -pm 1
 
 _(Note: The `CUDA Version` displayed in `nvidia-smi` is simply the maximum supported API version by the driver; it does not mean the toolkit is installed on the host)._
 
-#### **D. Install NVIDIA Container Toolkit (LXD Bridge)**
+### **4. Install NVIDIA Container Toolkit (LXD Bridge)**
 
 While the host now possesses the kernel-space drivers, LXD requires the NVIDIA Container Toolkit to seamlessly bind-mount the user-space libraries (`libcuda.so`, `nvidia-smi`) into our unprivileged containers. This allows us to use the `nvidia.runtime: "true"` flag in our LXD profiles, completely avoiding version-mismatch dependency hell inside the container.
 
@@ -805,11 +780,30 @@ sudo apt install -y nvidia-container-toolkit
 sudo systemctl restart snap.lxd.daemon
 ```
 
-### **8. Execution: Launching the AI Engine (vLLM)**
+## Incus Infrastructure-as-Code Synchronization
+
+_Objective: Synchronize the declarative Incus profiles (`builder`, `papermc`, `default`) and provision the isolated ZFS storage vaults (`is-model-vault`, `is-plugins-vault`) before launching any containers. This script enforces the baseline state of the hypervisor._
+
+### **1. Apply Declarative Profiles**
+
+Navigate to the root of your infrastructure repository. The synchronization script must be executed from this location to correctly resolve the `configs/incus` directory paths.
+
+```bash
+# Navigate to the workspace root
+cd ~/runemind-infrastructure
+
+# Grant execution permissions to the script
+chmod +x scripts/01-apply-profiles.sh
+
+# Execute the synchronization pipeline
+./scripts/01-apply-profiles.sh
+```
+
+## **Launching the AI Engine (vLLM)**
 
 _Objective: Deploy the Qwen ~35B MoE LLM using vLLM to bypass hardware FP8 instruction limitations on Ampere GPUs (via the Marlin kernel). To achieve maximum bare-metal throughput (80-90+ t/s) and prevent NCCL from falling back to the TCP loopback interface, we must systematically dismantle host-level IPC barriers, provision dedicated NVMe storage, and securely escalate the container's PCIe privileges._
 
-#### **8.1. Host-Level IPC Unlocking (YAMA Policy)**
+### **1. Host-Level IPC Unlocking (YAMA Policy)**
 
 By default, Ubuntu's YAMA security module prevents cross-process memory attachment (CMA). NVIDIA's NCCL library relies heavily on CMA for Shared Memory (SHM) synchronization when coordinating tensor parallelism across multiple GPUs. We must relax this policy on the bare-metal host before launching the container.
 
@@ -824,7 +818,7 @@ echo "kernel.yama.ptrace_scope=0" | sudo tee /etc/sysctl.d/10-ptrace.conf
 sudo sysctl --system
 ```
 
-#### **8.2. Decoupled AI Storage Vault**
+### **2. Decoupled AI Storage Vault**
 
 Create a dedicated 100GB custom volume on the high-performance ZFS NVMe pool. This isolates the massive HuggingFace/vLLM model weight caches from the ephemeral container OS.
 
@@ -837,7 +831,7 @@ lxc storage volume create is-nvme-pool is-model-vault
 lxc storage volume set is-nvme-pool is-model-vault size=100GiB
 ```
 
-#### **8.3. Declarative Profile Escalation**
+### **3. Declarative Profile Escalation**
 
 To allow the 4x RTX A4000s to communicate directly over the PCIe bus (bypassing the CPU entirely), the container requires `CAP_SYS_ADMIN` and raw LXC limits for `unlimited` memory locking. We apply these via our declarative Infrastructure-as-Code (IaC) YAML profiles.
 
@@ -855,7 +849,7 @@ lxc profile edit vllm < profiles/vllm.yaml
 lxc profile set vllm user.user-data - < init/vllm.yaml
 ```
 
-#### **8.4. Container Launch & Verification**
+### **4. Container Launch & Verification**
 
 Launch the container using the official Ubuntu 24.04 image and apply our newly configured profile.
 
@@ -873,7 +867,7 @@ lxc list vllm
 lxc exec vllm -- nvidia-smi
 ```
 
-#### **8.5. Systemd Service Deployment**
+### **5. Systemd Service Deployment**
 
 Once `cloud-init` finishes compiling the environment, we wrap the vLLM engine into a robust `systemd` service.
 
@@ -904,37 +898,35 @@ journalctl -fu vllm.service
 
 _(Operational Note: To tune the model, adjust batch sizes, or swap Attention Backends, simply edit `/etc/default/vllm` inside the container and run `systemctl restart vllm`. No `daemon-reload` is necessary)._
 
-## LXD Clean-Room Image Builder (Distrobuilder)
+## Incus Clean-Room Image Builder (Distrobuilder)
 
-_Objective: Maintain a pristine bare-metal host by isolating the image compilation process. We will provision a dedicated, privileged LXD container on the high-speed NVMe ZFS pool to run Distrobuilder. This "Clean Room" compiles our immutable Edge PaaS images (PaperMC, Velocity) from declarative YAML files without polluting the host OS with temporary `rootfs` mounts, apt caches, or build artifacts._
+_Objective: Maintain a pristine bare-metal host by isolating the image compilation process. We provision a dedicated, privileged Incus container on the high-speed NVMe ZFS pool to run Distrobuilder. This "Clean Room" compiles our immutable Edge PaaS images (PaperMC, Velocity) from declarative YAML files without polluting the host OS with temporary `rootfs` mounts, apt caches, or build artifacts._
 
-### **1. Builder Profile**
+### **1. Builder Profile (Pre-Applied)**
 
-Distrobuilder requires root-level capabilities to mount filesystems (`proc`, `sys`, `dev`) and `chroot` into the temporary `rootfs` during compilation. Furthermore, to prevent I/O thrashing on the 250GB host OS drive during the heavy compression phase, we force the builder's root disk onto the `is-nvme-pool`.
+Distrobuilder requires root-level capabilities to mount filesystems (`proc`, `sys`, `dev`) and `chroot` into the temporary `rootfs` during compilation. To prevent I/O thrashing on the 250GB host OS drive during the heavy compression phase, we force the builder's root disk onto the `is-nvme-pool`.
 
-See declarative profile at `configs/lxd/profiles/builder.yaml`.
+_(Note: This configuration is defined in `configs/incus/profiles/builder.yaml` and has already been applied to the Incus database via `01-apply-profiles.sh`)._
 
 ### **2. Provision the Build Environment**
 
-Inject the profile into LXD and launch the ephemeral builder container. We install the `distrobuilder` Go binary natively inside this isolated environment.
+Because the `builder` profile is already loaded, we can immediately launch the ephemeral container and install the `distrobuilder` binary natively inside this isolated environment.
 
 ```bash
-# Initialize the empty profile in the LXD database
-lxc profile create builder
+# Launch the Clean-Room container using Ubuntu 24.04 and attach the builder profile
+incus launch images:ubuntu/24.04 builder --profile builder
 
-# Inject the declarative YAML configuration
-cat ./runemind-infrastructure/configs/lxd/profiles/builder.yaml | lxc profile edit builder
+# Update apt repositories inside the minimal container
+incus exec builder -- apt-get update
 
-# Launch the Clean-Room container using Ubuntu 24.04
-lxc launch ubuntu:24.04 builder --profile builder
+# Install snapd, squashfuse, and debootstrap natively
+incus exec builder -- apt-get install -y rsync squashfs-tools snapd squashfuse xz-utils debootstrap
 
 # Install Distrobuilder natively inside the container
-lxc exec builder -- snap install distrobuilder --classic
-lxc exec builder -- apt-get update
-lxc exec builder -- apt-get install -y debootstrap
+incus exec builder -- snap install distrobuilder --classic
 
 # Scaffold the internal workspace directory
-lxc exec builder -- mkdir -p /workspace
+incus exec builder -- mkdir -p /workspace
 ```
 
 ### **3. The Compilation Pipeline (Standard Operating Procedure)**
@@ -943,31 +935,28 @@ When a new base image (e.g., `papermc.yaml`) needs to be compiled or updated, ex
 
 ```bash
 # Push the declarative image definition into the builder's workspace
-lxc file push ./runemind-infrastructure/configs/lxd/images/papermc.yaml builder/workspace/
+incus file push ./configs/incus/images/papermc.yaml builder/workspace/
 
 # Execute the build process inside the container
-# (This will download the rootfs, install packages, and compress the squashfs)
-lxc exec builder -- bash -c "cd /workspace && distrobuilder build-incus papermc.yaml"
+# (This downloads the rootfs, installs packages, and compresses the squashfs)
+incus exec builder -- bash -c "cd /workspace && distrobuilder build-incus papermc.yaml"
 
 # Pull the compiled artifacts back to the host's temporary directory
-mkdir -p /tmp/lxd-builds
-lxc file pull builder/workspace/incus.tar.xz /tmp/lxd-builds/
-lxc file pull builder/workspace/rootfs.squashfs /tmp/lxd-builds/
+mkdir -p /tmp/incus-builds
+incus file pull builder/workspace/incus.tar.xz /tmp/incus-builds/
+incus file pull builder/workspace/rootfs.squashfs /tmp/incus-builds/
 
-# Import the artifacts into the host's LXD image registry with an alias
-lxc image import /tmp/lxd-builds/incus.tar.xz /tmp/lxd-builds/rootfs.squashfs --alias papermc
+# Import the artifacts into the host's Incus image registry with an alias
+incus image import /tmp/incus-builds/incus.tar.xz /tmp/incus-builds/rootfs.squashfs --alias papermc
 
 # Clean up the host's temporary files
-rm -rf /tmp/lxd-builds
+rm -rf /tmp/incus-builds
 
 # Verify the image is available for Fastify to clone
-lxc image list
-
-# Inject the papermc profile into the LXD database
-cat ./runemind-infrastructure/configs/lxd/profiles/papermc.yaml | lxc profile edit papermc
+incus image list
 ```
 
-_(Note: The `builder` container can be left running silently in the background, or stopped via `lxc stop builder` when not actively compiling to conserve resources)._
+_(Note: The `builder` container can be left running silently in the background, or stopped via `incus stop builder` when not actively compiling to conserve resources. The `papermc` profile itself was already synced by the apply script, so no further profile editing is needed here)._
 
 ### **4. Stateful Vault Management (The Golden Master)**
 
@@ -977,20 +966,20 @@ Execute the following pipeline to update or initialize the global plugins templa
 
 ```bash
 # 1. Attach the dormant ZFS vault to the builder container dynamically
-lxc config device add builder global-plugins disk pool=is-nvme-pool source=is-plugins-vault path=/workspace/plugins
+incus config device add builder global-plugins disk pool=is-nvme-pool source=is-plugins-vault path=/workspace/plugins
 
 # 2. Ensure the builder is running
-lxc start builder
+incus start builder
 
 # 3. Populate the vault (Example: Pushing a .jar from the host)
-# Alternatively, you can `lxc exec builder -- bash` and use `wget` directly.
-lxc file push ./IonCore-v1.jar builder/workspace/plugins/
+# Alternatively, you can `incus exec builder -- bash` and use `wget` directly.
+incus file push ./IonCore-v1.jar builder/workspace/plugins/
 
 # 4. CRITICAL: Enforce Unprivileged Ownership
 # The builder is privileged (files default to root). We MUST shift ownership
 # to UID 1000 so the unprivileged 'minecraft' service user can read them in the clones.
-lxc exec builder -- chown -R 1000:1000 /workspace/plugins
+incus exec builder -- chown -R 1000:1000 /workspace/plugins
 
 # 5. Detach the vault to restore the builder to a pristine clean-room state
-lxc config device remove builder global-plugins
+incus config device remove builder global-plugins
 ```
