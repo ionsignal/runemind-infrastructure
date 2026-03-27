@@ -11,7 +11,7 @@
 
 ### **1. Static Network Configuration (Netplan)**
 
-To prevent ARP flux on the DMZ switch and provide a highly available, stable default gateway for the LXD containers, the dual 1GbE interfaces are bonded using Active-Backup (Mode 1). This ensures zero-downtime failover without requiring 802.3ad (LACP) configuration on the upstream EFG.
+To prevent ARP flux on the DMZ switch and provide a highly available, stable default gateway for the Incus containers, the dual 1GbE interfaces are bonded using Active-Backup (Mode 1). This ensures zero-downtime failover without requiring 802.3ad (LACP) configuration on the upstream EFG.
 
 ```bash
 sudo vim /etc/netplan/50-cloud-init.yaml
@@ -162,7 +162,7 @@ sudo ufw status numbered
 
 ### **5. High-Performance ZFS Storage Provisioning (NVMe)**
 
-Provision the drives as a unified, high-performance ZFS storage pool dedicated entirely to LXD. This allows LXD to manage ephemeral containers, persistent decoupled states (Custom Volumes), and a strictly isolated, GPU-passthrough.
+Provision the drives as a unified, high-performance ZFS storage pool dedicated entirely to Incus. This allows Incus to manage ephemeral containers, persistent decoupled states (Custom Volumes), and a strictly isolated, GPU-passthrough.
 
 #### **Step 5.1: Identify the Target Drive**
 
@@ -198,13 +198,13 @@ sudo partprobe /dev/nvme1n1
 
 #### **Step 5.3: Create the Optimized ZFS Pool (`is-nvme-pool`)**
 
-We create the ZFS pool manually on the host OS first rather than letting LXD do it. This allows us to strictly enforce NVMe-specific performance flags.
+We create the ZFS pool manually on the host OS first rather than letting Incus do it. This allows us to strictly enforce NVMe-specific performance flags.
 
 - `ashift=12`: Aligns the pool to 4K/8K NVMe sectors (prevents massive write amplification).
 - `compression=lz4`: Virtually zero CPU overhead, massive read speed boost for model weights.
-- `xattr=sa`: Stores extended attributes directly in the inode. Crucial for LXD because unprivileged containers heavily rely on POSIX ACLs for UID/GID shifting.
+- `xattr=sa`: Stores extended attributes directly in the inode. Crucial for Incus because unprivileged containers heavily rely on POSIX ACLs for UID/GID shifting.
 - `atime=off`: Completely disables access-time tracking, reducing write-amplification and speeding up Minecraft chunk loading and AI model reads.
-- `-m none`: Prevents the host OS from mounting the pool, reserving it entirely for LXD.
+- `-m none`: Prevents the host OS from mounting the pool, reserving it entirely for Incus.
 
 ```bash
 # Install the ZFS management tools
@@ -648,10 +648,10 @@ incus network set incusbr0 ipv6.nat false
 # Verify the network is locked down
 incus network show incusbr0
 
-# Tell LXD to consume the existing 'is-nvme-pool' ZFS pool
+# Tell Incus to consume the existing 'is-nvme-pool' ZFS pool
 incus storage create is-nvme-pool zfs source=is-nvme-pool
 
-# Verify LXD sees the new storage pool
+# Verify Incus sees the new storage pool
 incus storage list
 ```
 
@@ -751,7 +751,7 @@ Once the server is back online, verify the PCIe devices are initialized. We also
 # 1. Verify driver initialization (Check Driver Version and ensure all 4x GPUs are listed)
 nvidia-smi
 
-# 2. Verify the device nodes were successfully created for LXD passthrough
+# 2. Verify the device nodes were successfully created for Incus passthrough
 ls -l /dev/nvidia*
 
 # 3. Enable Persistence Mode (Lock to Maximum Performance State)
@@ -761,9 +761,9 @@ sudo nvidia-smi -pm 1
 
 _(Note: The `CUDA Version` displayed in `nvidia-smi` is simply the maximum supported API version by the driver; it does not mean the toolkit is installed on the host)._
 
-### **4. Install NVIDIA Container Toolkit (LXD Bridge)**
+### **4. Install NVIDIA Container Toolkit (Incus Bridge)**
 
-While the host now possesses the kernel-space drivers, LXD requires the NVIDIA Container Toolkit to seamlessly bind-mount the user-space libraries (`libcuda.so`, `nvidia-smi`) into our unprivileged containers. This allows us to use the `nvidia.runtime: "true"` flag in our LXD profiles, completely avoiding version-mismatch dependency hell inside the container.
+While the host now possesses the kernel-space drivers, Incus requires the NVIDIA Container Toolkit to seamlessly bind-mount the user-space libraries (`libcuda.so`, `nvidia-smi`) into our unprivileged containers. This allows us to use the `nvidia.runtime: "true"` flag in our Incus profiles, completely avoiding version-mismatch dependency hell inside the container.
 
 ```bash
 # Add the official NVIDIA Container Toolkit repository and GPG key
@@ -776,8 +776,8 @@ curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | sudo gpg --dear
 sudo apt update
 sudo apt install -y nvidia-container-toolkit
 
-# Restart the LXD snap daemon so it detects the toolkit binaries
-sudo systemctl restart snap.lxd.daemon
+# Restart the Incus snap daemon so it detects the toolkit binaries
+sudo systemctl restart incus
 ```
 
 ## Incus Infrastructure-as-Code Synchronization
@@ -803,9 +803,9 @@ chmod +x scripts/01-apply-profiles.sh
 
 _Objective: Deploy the Qwen ~35B MoE LLM using vLLM to bypass hardware FP8 instruction limitations on Ampere GPUs (via the Marlin kernel). To achieve maximum bare-metal throughput (80-90+ t/s) and prevent NCCL from falling back to the TCP loopback interface, we must systematically dismantle host-level IPC barriers, provision dedicated NVMe storage, and securely escalate the container's PCIe privileges._
 
-### **1. Host-Level IPC Unlocking (YAMA Policy)**
+### **1. Host-Level IPC Unlocking & Toolkit Hook**
 
-By default, Ubuntu's YAMA security module prevents cross-process memory attachment (CMA). NVIDIA's NCCL library relies heavily on CMA for Shared Memory (SHM) synchronization when coordinating tensor parallelism across multiple GPUs. We must relax this policy on the bare-metal host before launching the container.
+By default, Ubuntu's YAMA security module prevents cross-process memory attachment (CMA). NVIDIA's NCCL library relies heavily on CMA for Shared Memory (SHM) synchronization when coordinating tensor parallelism across multiple GPUs. We must relax this policy on the bare-metal host.
 
 ```bash
 # Temporarily relax YAMA to allow cross-process memory attachment for NCCL
@@ -816,58 +816,30 @@ echo "kernel.yama.ptrace_scope=0" | sudo tee /etc/sysctl.d/10-ptrace.conf
 
 # Apply system changes
 sudo sysctl --system
+
+# Restart incus to apply changes
+sudo systemctl restart incus
 ```
 
-### **2. Decoupled AI Storage Vault**
+### **2. Container Launch & Verification**
 
-Create a dedicated 100GB custom volume on the high-performance ZFS NVMe pool. This isolates the massive HuggingFace/vLLM model weight caches from the ephemeral container OS.
-
-```bash
-# Verify pool capacity before provisioning
-zfs list is-nvme-pool
-
-# Provision the dedicated model vault
-lxc storage volume create is-nvme-pool is-model-vault
-lxc storage volume set is-nvme-pool is-model-vault size=100GiB
-```
-
-### **3. Declarative Profile Escalation**
-
-To allow the 4x RTX A4000s to communicate directly over the PCIe bus (bypassing the CPU entirely), the container requires `CAP_SYS_ADMIN` and raw LXC limits for `unlimited` memory locking. We apply these via our declarative Infrastructure-as-Code (IaC) YAML profiles.
-
-```bash
-# Navigate to the infrastructure repository
-cd ~./runemind-infrastructure/configs/lxd/
-
-# Create the empty profile
-lxc profile create vllm
-
-# Inject the hardware and network configuration
-lxc profile edit vllm < profiles/vllm.yaml
-
-# Inject the cloud-init bootstrap script
-lxc profile set vllm user.user-data - < init/vllm.yaml
-```
-
-### **4. Container Launch & Verification**
-
-Launch the container using the official Ubuntu 24.04 image and apply our newly configured profile.
+Launch the container using the official Ubuntu 24.04 image and apply our newly configured profiles. _(Crucial: Incus uses the community `images:` remote, not Canonical's proprietary `ubuntu:` remote)._
 
 ```bash
 # Launch the container
-lxc launch ubuntu:24.04 vllm --profile default --profile vllm
+incus launch images:ubuntu/24.04/cloud vllm --profile default --profile vllm
 
 # Watch the automated cloud-init installation in real-time
-lxc exec vllm -- tail -f /var/log/cloud-init-output.log
+incus exec vllm -- tail -f /var/log/cloud-init-output.log
 
 # Verify the container received its static IP (10.10.10.50)
-lxc list vllm
+incus list vllm
 
 # Verify the GPUs successfully passed through to the container
-lxc exec vllm -- nvidia-smi
+incus exec vllm -- nvidia-smi
 ```
 
-### **5. Systemd Service Deployment**
+### **3. Systemd Service Deployment**
 
 Once `cloud-init` finishes compiling the environment, we wrap the vLLM engine into a robust `systemd` service.
 
@@ -875,19 +847,25 @@ To adhere to Enterprise Infrastructure-as-Code principles, we utilize **Total De
 
 ```bash
 # Drop into the container shell
-lxc exec vllm -- bash
+incus exec vllm -- bash
 
 # Create the systemd service file
 sudo vim /etc/systemd/system/vllm.service
 ```
 
-**File: `/etc/systemd/system/vllm.service` (Inside Container)**
+**File: `/etc/systemd/system/vllm.service` (see configuration)**
 
 Apply the configuration and bring the AI engine online:
 
 ```bash
 # Reload systemd to register the new unit file
 systemctl daemon-reload
+
+# Running server manually (recommended for first time)
+su vllm
+source /etc/profile.d/vllm.sh
+source venv/bin/activate
+python -m vllm.entrypoints.openai.api_server $API_SERVER_ARGS
 
 # Enable the service to start automatically on container boot
 systemctl enable --now vllm.service
@@ -897,6 +875,8 @@ journalctl -fu vllm.service
 ```
 
 _(Operational Note: To tune the model, adjust batch sizes, or swap Attention Backends, simply edit `/etc/default/vllm` inside the container and run `systemctl restart vllm`. No `daemon-reload` is necessary)._
+
+_(Security Note: Gateway Authentication for the Caddy `@ai` reverse proxy route is currently deferred to prioritize internal throughput testing. The endpoint is openly routing to `10.10.10.50:8080`. This must be secured in a future phase before exposing the API beyond the DMZ/Home boundary)._
 
 ## Incus Clean-Room Image Builder (Distrobuilder)
 
@@ -914,7 +894,7 @@ Because the `builder` profile is already loaded, we can immediately launch the e
 
 ```bash
 # Launch the Clean-Room container using Ubuntu 24.04 and attach the builder profile
-incus launch images:ubuntu/24.04 builder --profile builder
+incus launch images:ubuntu/24.04 builder --profile default --profile builder
 
 # Update apt repositories inside the minimal container
 incus exec builder -- apt-get update

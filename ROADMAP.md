@@ -1,6 +1,6 @@
 # Nerrus Infrastructure Roadmap
 
-**Mission:** Architect and maintain a high-performance, hybrid-workload edge server balancing a ~35B parameter MoE LLM (AI Inference) and real-time Minecraft game servers (LXD) within a strict Zero-Trust DMZ environment. All workloads, including the AI engine, operate strictly within LXD containers to ensure absolute host isolation.
+**Mission:** Architect and maintain a high-performance, hybrid-workload edge server balancing a ~35B parameter MoE LLM (AI Inference) and real-time Minecraft game servers (Incus) within a strict Zero-Trust DMZ environment. All workloads, including the AI engine, operate strictly within Incus containers to ensure absolute host isolation.
 
 ### Environment & Hardware Baseline
 
@@ -11,14 +11,14 @@
 - **Host IP:** `172.20.2.115` (Static via `bond0` Active-Backup).
 - **Storage Layout:**
   - _OS Drive:_ 250GB NVMe (`/dev/nvme0n1`, Ubuntu 24.04 LTS, ext4, No LVM).
-  - _AI Vault:_ 2TB NVMe (`/dev/nvme1n1`, ZFS Pool `is-nvme-pool`, dedicated to LXD).
-  - _Game Tier:_ 4x 500GB SATA HDDs/SSDs (ZFS Pool configured for LXD Custom Storage Volumes).
+  - _AI Vault:_ 2TB NVMe (`/dev/nvme1n1`, ZFS Pool `is-nvme-pool`, dedicated to Incus).
+  - _Game Tier:_ 4x 500GB SATA HDDs/SSDs (ZFS Pool configured for Incus Custom Storage Volumes).
 
 ### Architectural Constraints
 
 - **Zero-Trust DMZ:** The host cannot initiate outbound connections to Internal (`192.168.x.x`, `10.x.x.x` external) or Home (`172.20.3.0/24`) networks.
-- **Defense-in-Depth Containerization:** No workloads run directly on the bare-metal host OS. Both the AI Inference Engine and Game Servers operate inside heavily restricted LXD containers.
-- **Micro-CA SSL:** Wildcard certificates (`*.ionsignal.com`) are generated securely via Caddy using the `acme-dns` plugin hosted on an isolated AWS ARM64 instance.
+- **Defense-in-Depth Containerization:** No workloads run directly on the bare-metal host OS. Both the AI Inference Engine and Game Servers operate inside heavily restricted Incus containers.
+- **Micro-CA SSL:** Wildcard certificates (`*.ionsignal.com`/`*.runemind.com`) are generated securely via Caddy using the `acme-dns` plugin hosted on an isolated AWS ARM64 instance.
 
 ---
 
@@ -30,19 +30,19 @@ _Objective: Establish a secure host environment, enforce network boundaries, int
 - **[✓] Host Hardening & Defense-in-Depth:** Root login and password authentication disabled. UFW configured with strict outbound fencing and restricted inbound access.
 - **[✓] Static Network Configuration:** `bond0` configured in Active-Backup mode for high availability and ARP stability.
 - **[✓] Zero-Trust Micro-CA Integration:** Caddy compiled natively with `acme-dns`, stripped of root privileges (`CAP_NET_BIND_SERVICE`), and configured to terminate wildcard SSL.
-- **[✓] LXD Minimal Initialization:** LXD 6.x LTS installed, bound strictly to `127.0.0.1:8443`, and proxied securely through Caddy using an mTLS client-certificate bridge and BasicAuth.
+- **[✓] Incus Minimal Initialization:** Incus 6.x LTS installed, bound strictly to `127.0.0.1:8443`, and proxied securely through Caddy using an mTLS client-certificate bridge and BasicAuth.
 - **[✓] High-Performance Storage Provisioning:** ZFS `is-nvme-pool` successfully created with `ashift=12`, `compression=lz4`, and `atime=off`. ZFS ARC clamped to 4GB to prevent host OOM conditions.
 
 ---
 
 ## Phase 2: AI Infrastructure Containerization
 
-_Objective: Deploy the Qwen ~35B MoE LLM securely within an LXD container, utilizing GPU passthrough to maintain bare-metal PCIe efficiency. (Note: Shifted from SGLang to vLLM to bypass Ampere FP8 hardware limitations via the Marlin kernel)._
+_Objective: Deploy the Qwen ~35B MoE LLM securely within an Incus container, utilizing GPU passthrough to maintain bare-metal PCIe efficiency. (Note: Shifted from SGLang to vLLM to bypass Ampere FP8 hardware limitations via the Marlin kernel)._
 
 - **[✓] NVIDIA Host Stack:** Installed headless proprietary v580 drivers and the NVIDIA Container Toolkit natively on the host OS to initialize the PCIe devices.
 - **[✓] Decoupled AI Storage Vault:** Provisioned a 100GB custom storage volume (`is-model-vault`). Redirected HuggingFace/vLLM caches directly to this vault, decoupling massive model weights from the ephemeral container OS.
 - **[✓] Containerized Engine Deployment (Declarative IaC):**
-  - Provisioned a dedicated LXD container (`vllm`) via YAML profiles with a static IP (`10.10.10.50`).
+  - Provisioned a dedicated Incus container (`vllm`) via YAML profiles with a static IP (`10.10.10.50`).
   - Mapped the 4x RTX A4000s directly into the container using `nvidia.runtime: "true"`.
   - Embedded a `cloud-init` script to create an isolated `vllm` user, provision a high-speed Python `venv` via `uv`, and install CUDA 12.8 Toolkit natively so vLLM can JIT-compile custom kernels.
 - **[✓] NCCL/IPC & OOM Tuning (110+ t/s Achieved):**
@@ -56,24 +56,24 @@ _Objective: Deploy the Qwen ~35B MoE LLM securely within an LXD container, utili
 
 ---
 
-## Phase 3: LXD Containerization & Configuration Management (Current Phase)
+## Phase 3: Incus Containerization & Configuration Management (Current Phase)
 
 _Objective: Deploy a highly reproducible, stateless PaperMC base image and implement a GitOps-style "Configuration Drift Management" system. This phase eliminates environment variable limitations and establishes Postgres as the absolute source of truth for all container states, strictly decoupling ephemeral compute from persistent ZFS storage._
 
 ### **Completed Foundations (The Stateless Edge)**
 
-- **[✓] Network Fencing & Security:** Host UFW configured. `security.ipv4_filtering=true` enforced on the `lxdbr0` bridge to prevent IP/MAC spoofing. (Note: Velocity Proxy will operate as Container 1 with a static IP on this bridge for upstream EFG port-forwarding).
+- **[✓] Network Fencing & Security:** Host UFW configured. `security.ipv4_filtering=true` enforced on the `Incusbr0` bridge to prevent IP/MAC spoofing. (Note: Velocity Proxy will operate as Container 1 with a static IP on this bridge for upstream EFG port-forwarding).
 - **[✓] Immutable "Dumb" Base Image (Distrobuilder):** Abandoned `cloud-init` for a declarative `papermc` base image (Ubuntu 24.04, OpenJDK 21, PaperMC). Uses a "Zero-Logic Entrypoint" (systemd directly executes Java via injected `jvm.env`), booting in milliseconds with zero artifact history.
-- **[✓] LXD File API Transport (Data-Plane Push Model):** Refactored the monolithic LXD client into modular RESTful namespaces (`instances`, `files`). Cryptographic secrets and configs are pushed directly to disk via the File API with strict unprivileged ownership headers (`X-LXD-uid: 1000`).
-- **[✓] Tier 1 Filesystem Architecture (Raw I/O):** Built `FileService` as a secure proxy to the LXD File API. It enforces chroot jails (`/opt/minecraft`) to prevent traversal attacks and verifies Postgres ownership before allowing read/write/delete operations.
+- **[✓] Incus File API Transport (Data-Plane Push Model):** Refactored the monolithic Incus client into modular RESTful namespaces (`instances`, `files`). Cryptographic secrets and configs are pushed directly to disk via the File API with strict unprivileged ownership headers (`X-Incus-uid: 1000`).
+- **[✓] Tier 1 Filesystem Architecture (Raw I/O):** Built `FileService` as a secure proxy to the Incus File API. It enforces chroot jails (`/opt/minecraft`) to prevent traversal attacks and verifies Postgres ownership before allowing read/write/delete operations.
 
 ---
 
 ### **Stateful Orchestration & Drift**
 
 - **[ ] 3.1. Stateful Volume Orchestration (The CSI Pattern)**
-  _Treat Fastify as a Container Storage Interface (CSI). LXD profiles remain strictly stateless. All tenant-specific ZFS datasets are dynamically provisioned, cloned, and attached by the backend during the deployment lifecycle._
-  - **Expand LXD Client (`storage.ts`):** Implement a new sub-module to interface with `/1.0/storage-pools/{pool}/volumes` to handle volume creation, deletion, and ZFS cloning (`copy`).
+  _Treat Fastify as a Container Storage Interface (CSI). Incus profiles remain strictly stateless. All tenant-specific ZFS datasets are dynamically provisioned, cloned, and attached by the backend during the deployment lifecycle._
+  - **Expand Incus Client (`storage.ts`):** Implement a new sub-module to interface with `/1.0/storage-pools/{pool}/volumes` to handle volume creation, deletion, and ZFS cloning (`copy`).
   - **The Provisioning Pipeline (`InstanceService.create`):** Refactor the creation logic into a 5-step orchestration pipeline:
     1.  **Compute:** Initialize the offline container (`tenant-123`) from the `papermc` image.
     2.  **Provision State:** Create empty ZFS volumes for `world` and `config`. Dynamically execute a ZFS CoW Clone of `is-plugins-vault` -> `tenant-123-plugins`.
@@ -91,7 +91,7 @@ _Objective: Deploy a highly reproducible, stateless PaperMC base image and imple
 
 - **[ ] 3.3. Configuration Drift Management (The Audit Loop)**
   _Ensure manual changes made inside a container (e.g., via SSH) are instantly detected and reconciled with the Control Plane._
-  - Fastify pulls the live file hash from the LXD container via `FileService`.
+  - Fastify pulls the live file hash from the Incus container via `FileService`.
   - Compares the live hash against the `SHA-256` hash stored in Postgres.
   - Mismatches trigger a "Drift Detected" warning in the Vue UI, prompting the admin to either **Overwrite Container** (push DB state) or **Import to DB** (parse live file into JSONB and update Postgres).
 
