@@ -11,7 +11,6 @@ echo "Applying Incus Infrastructure-as-Code..."
 # ---------------------------------------------------------
 echo "-> Verifying Storage Pools..."
 # We DO NOT edit storage pools automatically. We just verify they exist.
-incus storage show default >/dev/null || echo "WARNING: 'default' pool missing!"
 incus storage show is-nvme-pool >/dev/null || echo "WARNING: 'is-nvme-pool' missing!"
 # ---------------------------------------------------------
 # Custom Volumes (The Vaults)
