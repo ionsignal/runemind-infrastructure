@@ -36,7 +36,7 @@ incus storage volume set is-nvme-pool is-plugins-vault security.shifted=true
 # ---------------------------------------------------------
 echo "-> Syncing Profiles..."
 # Loop through all profiles to reduce code duplication
-PROFILES=("default") # TODO: Add back "vllm" "builder" "papermc" after testing
+PROFILES=("default" "builder" "papermc" "vllm")
 for profile in "${PROFILES[@]}"; do
     # Check if profile exists, create if it doesn't
     if ! incus profile show "$profile" >/dev/null 2>&1; then
