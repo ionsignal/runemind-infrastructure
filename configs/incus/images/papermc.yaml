@@ -106,7 +106,7 @@ files:
     generator: remove
 
   # Configure Netplan to use DHCP on eth0 so the container gets an IP
-  - path: /etc/netplan/10-lxc.yaml
+  - path: /etc/netplan/10-incus.yaml
     generator: dump
     content: |-
       network:
@@ -130,7 +130,7 @@ files:
       User=minecraft
       Group=minecraft
       WorkingDirectory=/opt/minecraft
-      PassEnvironment=ION_TENANT_ID ION_JVM_ARGS
+      EnvironmentFile=/opt/minecraft/config/jvm.env
       ExecStart=/usr/bin/java $ION_JVM_ARGS -jar paper.jar --nogui
       SuccessExitStatus=143
       Restart=on-failure
