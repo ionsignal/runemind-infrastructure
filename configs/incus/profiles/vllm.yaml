@@ -12,7 +12,7 @@ config:
   # Nvidia Runtime Bridge
   nvidia.runtime: 'true'
 
-  # Native LXD kernel limit for NCCL Shared Memory
+  # Native Incus kernel limit for NCCL Shared Memory
   limits.kernel.memlock: unlimited
 
 devices:

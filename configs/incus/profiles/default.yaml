@@ -1,12 +1,13 @@
 name: default
-description: Default LXD profile
+description: Default Incus profile
 config: {}
 devices:
   eth0:
     name: eth0
     network: incusbr0
     type: nic
+
   root:
     path: /
-    pool: default
+    pool: is-nvme-pool
     type: disk

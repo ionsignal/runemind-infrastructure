@@ -10,7 +10,7 @@ config:
   linux.kernel_modules: loop,squashfs
 
 devices:
-  # Standard network attachment to reach the internet (apt, wget) and the host LXD API
+  # Standard network attachment to reach the internet (apt, wget) and the host Incus API
   eth0:
     name: eth0
     network: incusbr0
