@@ -8,6 +8,7 @@ packages:
   - build-essential
   - git
   - nvtop
+  - wget
 
 users:
   - name: vllm
@@ -19,7 +20,7 @@ users:
 write_files:
   - path: /etc/default/vllm
     owner: root:root
-    permissions: "0640"
+    permissions: '0640'
     content: |
       PATH=/opt/vllm/venv/bin:/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
       VIRTUAL_ENV=/opt/vllm/venv
@@ -39,7 +40,7 @@ write_files:
 
   - path: /etc/profile.d/vllm.sh
     owner: root:root
-    permissions: "0644"
+    permissions: '0644'
     content: |
       set -a
       source /etc/default/vllm 2>/dev/null
