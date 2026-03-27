@@ -799,7 +799,7 @@ chmod +x scripts/01-apply-profiles.sh
 ./scripts/01-apply-profiles.sh
 ```
 
-## **Launching the AI Engine (vLLM)**
+## Launching the AI Engine (vLLM)
 
 _Objective: Deploy the Qwen ~35B MoE LLM using vLLM to bypass hardware FP8 instruction limitations on Ampere GPUs (via the Marlin kernel). To achieve maximum bare-metal throughput (80-90+ t/s) and prevent NCCL from falling back to the TCP loopback interface, we must systematically dismantle host-level IPC barriers, provision dedicated NVMe storage, and securely escalate the container's PCIe privileges._
 
