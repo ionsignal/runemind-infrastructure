@@ -44,7 +44,7 @@ for profile in "${PROFILES[@]}"; do
         incus profile create "$profile"
     fi
     # If the YAML definition exists, pipe it directly into Incus
-    if[ -f "configs/incus/profiles/$profile.yaml" ]; then
+    if [ -f "configs/incus/profiles/$profile.yaml" ]; then
         echo "   Applying configuration for '$profile'..."
         cat "configs/incus/profiles/$profile.yaml" | incus profile edit "$profile"
     else
