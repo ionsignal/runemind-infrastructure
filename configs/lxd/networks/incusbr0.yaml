@@ -1,0 +1,16 @@
+name: incusbr0
+description: ''
+config:
+  ipv4.address: 10.10.10.1/24
+  ipv4.dhcp.ranges: 10.10.10.100-10.10.10.200
+  ipv4.nat: 'true'
+  ipv6.address: none
+  ipv6.nat: 'false'
+type: bridge
+used_by:
+  - /1.0/profiles/default
+managed: true
+status: Created
+locations:
+  - none
+project: default

@@ -1,0 +1,26 @@
+# /etc/netplan/50-cloud-init.yaml
+network:
+  version: 2
+  ethernets:
+    enp7s0:
+      dhcp4: false
+    enp8s0:
+      dhcp4: false
+  bonds:
+    bond0:
+      interfaces:
+        - enp7s0
+        - enp8s0
+      addresses:
+        - 172.20.2.115/24
+      routes:
+        - to: default
+          via: 172.20.2.1
+      nameservers:
+        addresses:
+          - 172.20.2.1
+          - 1.1.1.1
+      parameters:
+        mode: active-backup
+        primary: enp8s0
+        mii-monitor-interval: 100

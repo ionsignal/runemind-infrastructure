@@ -19,7 +19,7 @@
 		X-Frame-Options "DENY"
 		X-XSS-Protection "1; mode=block"
 	}
-	# Route AI API Traffic (sglang)
+	# Route AI API Traffic (vllm/sglang)
 	@ai host api.ionsignal.com
 	handle @ai {
 		reverse_proxy 10.10.10.50:8080 {
@@ -27,18 +27,19 @@
 			flush_interval -1
 		}
 	}
-	# Route LXD UI Traffic
-	@lxd host lxd.ionsignal.com
-	handle @lxd {
+	# Route Incus UI & API Traffic
+	@incus host incus.ionsignal.com
+	handle @incus {
 		# Protect the URL with your hashed password
 		basic_auth {
 			admin $2a$14$yEU3mdzE9W8NUTt7ke270ez./YsWYK8Grlwv8woLJD.S6RBAM6qhq
+			dev $2a$14$y8vpwMOPy5cdud1IwhlsRuAPPPSk/xGku1jC7DuP7Kf6eJhtd.0k.
 		}
 		# Proxy to LXD and present the Client Certificate
 		reverse_proxy 10.10.10.1:8443 {
 			transport http {
 				tls_insecure_skip_verify
-				tls_client_auth /etc/caddy/lxd-certs/caddy.crt /etc/caddy/lxd-certs/caddy.key
+				tls_client_auth /etc/caddy/incus-certs/caddy.crt /etc/caddy/incus-certs/caddy.key
 			}
 		}
 	}

@@ -29,7 +29,7 @@ devices:
   # Root Filesystem (Ephemeral OS drive)
   root:
     path: /
-    pool: default
+    pool: is-nvme-pool
     type: disk
 
   # ZFS Model Vault (Direct NVMe mount)
