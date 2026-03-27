@@ -70,5 +70,5 @@ runcmd:
 
   # Build the environment and install vLLM
   - sudo -u vllm python3 -m venv /opt/vllm/venv
-  - sudo -u vllm bash -c 'source /opt/vllm/venv/bin/activate && source /etc/default/vllm && pip install uv'
-  - sudo -u vllm bash -c 'source /opt/vllm/venv/bin/activate && source /etc/default/vllm && uv pip install vllm==0.17.1 ray'
+  - sudo -u vllm bash -c 'source /opt/vllm/venv/bin/activate && source /etc/profile.d/vllm.sh && pip install uv'
+  - sudo -u vllm bash -c 'source /opt/vllm/venv/bin/activate && source /etc/profile.d/vllm.sh && uv pip install vllm==0.17.1 ray'
