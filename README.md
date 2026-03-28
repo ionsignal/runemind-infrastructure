@@ -880,26 +880,31 @@ _(Security Note: Gateway Authentication for the Caddy `@ai` reverse proxy route 
 
 ## Incus Clean-Room Image Builder & Vault Manager
 
-_Objective: Maintain a pristine bare-metal host by isolating both the image compilation process and the management of our ZFS Golden Master vaults. We provision a dedicated, privileged Incus container on the high-speed NVMe ZFS pool. This "Clean Room" compiles our immutable Edge PaaS images (PaperMC, Velocity) from declarative YAML files, and serves as a sterile utility vehicle to safely inject files and lock down unprivileged ownership for our ZFS storage templates._
+_Objective: Maintain a pristine bare-metal host by isolating both the image compilation process and the management of our ZFS Golden Master vaults. To enforce strict security boundaries, we provision two dedicated Incus containers on the high-speed NVMe ZFS pool: a privileged "Clean Room" for compiling immutable Edge PaaS images (PaperMC, Velocity), and an unprivileged "Vault Manager" to safely inject files and lock down ownership for our ZFS storage templates._
 
 ### **1. Infrastructure-as-Code (Pre-Applied)**
 
-The builder's infrastructure is fully declarative and applied via the `01-apply-profiles.sh` script. This script automatically handles:
+The infrastructure is fully declarative and applied via the `01-apply-profiles.sh` script. This script automatically handles:
 
 - **Storage:** Provisioning the three ZFS master vaults (`is-plugins-vault`, `is-world-vault`, `is-config-vault`) with strict VFS idmapping (`security.shifted=true`).
-- **Profile (`builder.yaml`):** Granting root-level capabilities for `distrobuilder` to mount filesystems, forcing the container onto the NVMe pool, and statically attaching the three ZFS vaults to `/opt/minecraft/...`.
-- **Init (`init/builder.yaml`):** Injecting a `cloud-init` payload that automatically installs compilation dependencies (`snapd`, `distrobuilder`, `debootstrap`) and creates the unprivileged `minecraft` (UID 1000) service user on first boot.
+- **Builder Profile (`builder.yaml`):** Granting root-level, privileged capabilities for `distrobuilder` to mount filesystems, forcing the container onto the NVMe pool.
+- **Vault Manager Profile (`minecraft.yaml`):** Enforcing an unprivileged security baseline and statically attaching the three ZFS vaults to `/opt/minecraft/`.
+- **Init Scripts (`init/*.yaml`):** Injecting `cloud-init` payloads. The builder auto-installs compilation dependencies (`snapd`, `distrobuilder`), while the vault manager natively provisions the `minecraft` (UID 1000) service user.
 
-### **2. Provision the Build Environment**
+### **2. Provision the Utility Environments**
 
-Because the infrastructure is pre-configured, provisioning the clean-room is entirely automated. We use the `/cloud` variant of the Ubuntu image so our `cloud-init` script is executed.
+Because the infrastructure is pre-configured, provisioning the containers is entirely automated. We use the `/cloud` variant of the Ubuntu image so our `cloud-init` scripts are executed on first boot.
 
 ```bash
-# Launch the Clean-Room container using the cloud-enabled Ubuntu 24.04 image
+# Launch the Privileged Clean-Room Builder
 incus launch images:ubuntu/24.04/cloud builder --profile default --profile builder
 
-# Wait for cloud-init to finish installing distrobuilder and configuring the workspace (~30-60s)
+# Launch the Unprivileged Vault Manager
+incus launch images:ubuntu/24.04/cloud minecraft --profile default --profile minecraft
+
+# Wait for cloud-init to finish installing dependencies and configuring users (~30-60s)
 incus exec builder -- cloud-init status --wait
+incus exec minecraft -- cloud-init status --wait
 ```
 
 ### **3. The Compilation Pipeline (Standard Operating Procedure)**
@@ -931,28 +936,29 @@ incus image list
 
 ### **4. Stateful Vault Management (The Golden Masters)**
 
-_Objective: Populate the ZFS Golden Master vaults (`plugins`, `world`, `config`) with baseline files. Because these vaults are permanently attached to the `builder` container via its profile, we can push files directly to them at any time and enforce strict unprivileged ownership before our Fastify backend clones them for new tenants._
+_Objective: Populate the ZFS Golden Master vaults (`plugins`, `world`, `config`) with baseline files. Because these vaults are permanently attached to the `minecraft` container, we can push files directly to them at any time and enforce strict unprivileged ownership before our Fastify backend clones them for new tenants._
 
 Execute the following pipeline to update or initialize the global templates:
 
 ```bash
-# Ensure the builder is running
-incus start builder
+# Ensure the Vault Manager is running
+incus start minecraft
 
 # Populate the vaults (Pushing files directly from the host)
-# The vaults are statically mounted at /opt/minecraft inside the builder.
-incus file push ./IonCore-v1.jar builder/opt/minecraft/plugins/
-incus file push ./server.properties builder/opt/minecraft/config/
-incus file push ./paper.yml builder/opt/minecraft/config/
+# The vaults are statically mounted at /opt/minecraft inside the container.
+incus file push ./IonCore-v1.jar minecraft/opt/minecraft/plugins/
+incus file push ./server.properties minecraft/opt/minecraft/config/
+incus file push ./paper.yml minecraft/opt/minecraft/config/
 
 # CRITICAL: Enforce Unprivileged Ownership
-# The builder is privileged (pushed files default to root). We MUST shift ownership
+# Files pushed from the host may default to root ownership. We MUST shift ownership
 # to the 'minecraft' user (UID 1000) so the unprivileged tenant clones can read/write to them.
-incus exec builder -- chown -R minecraft:minecraft /opt/minecraft
+incus exec minecraft -- chown -R minecraft:minecraft /opt/minecraft
 
-# Verify ownership applied correctly
-incus exec builder -- ls -la /opt/minecraft/config
+# Verify ownership applied correctly (Should show minecraft:minecraft)
+incus exec minecraft -- ls -la /opt/minecraft/config
 
-# (Optional) Stop the builder to conserve host resources when not actively managing images/vaults
+# (Optional) Stop the utility containers to conserve host resources when not in use
 incus stop builder
+incus stop minecraft
 ```
