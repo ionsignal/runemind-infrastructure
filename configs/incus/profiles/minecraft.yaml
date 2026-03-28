@@ -1,0 +1,34 @@
+name: minecraft
+description: 'Unprivileged Vault Manager for Master Templates'
+config:
+  security.privileged: 'false'
+  security.nesting: 'false'
+
+devices:
+  eth0:
+    name: eth0
+    network: incusbr0
+    type: nic
+
+  root:
+    path: /
+    pool: is-nvme-pool
+    type: disk
+
+  plugins:
+    path: /opt/minecraft/plugins
+    pool: is-nvme-pool
+    source: is-plugins-vault
+    type: disk
+
+  world:
+    path: /opt/minecraft/world
+    pool: is-nvme-pool
+    source: is-world-vault
+    type: disk
+
+  config:
+    path: /opt/minecraft/config
+    pool: is-nvme-pool
+    source: is-config-vault
+    type: disk

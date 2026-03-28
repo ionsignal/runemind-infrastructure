@@ -21,22 +21,34 @@ if ! incus storage volume show is-nvme-pool is-model-vault >/dev/null 2>&1; then
     echo "   Creating custom volume 'is-model-vault'..."
     incus storage volume create is-nvme-pool is-model-vault
 fi
-# Safely set the size quota. We omit security.shifted to protect the existing vLLM data.
-incus storage volume set is-nvme-pool is-model-vault size=100GiB
+incus storage volume set is-nvme-pool is-model-vault size=100GiB || echo "   -> Notice: Could not update size (volume may be in use)."
 # Create [is-plugins-vault]:
 echo "-> Verifying ZFS Plugin Template Vault..."
 if ! incus storage volume show is-nvme-pool is-plugins-vault >/dev/null 2>&1; then
     echo "   Creating custom volume 'is-plugins-vault'..."
     incus storage volume create is-nvme-pool is-plugins-vault
 fi
-# Safely apply the VFS idmapping flag via CLI so unprivileged containers can read/write
-incus storage volume set is-nvme-pool is-plugins-vault security.shifted=true
+incus storage volume set is-nvme-pool is-plugins-vault security.shifted=true || echo "   -> Notice: Could not update shifted flag (volume may be in use)."
+# Create [is-world-vault] for Golden Master cloning
+echo "-> Verifying ZFS World Template Vault..."
+if ! incus storage volume show is-nvme-pool is-world-vault >/dev/null 2>&1; then
+    echo "   Creating custom volume 'is-world-vault'..."
+    incus storage volume create is-nvme-pool is-world-vault
+fi
+incus storage volume set is-nvme-pool is-world-vault security.shifted=true || echo "   -> Notice: Could not update shifted flag (volume may be in use)."
+# Create [is-config-vault] for Golden Master cloning
+echo "-> Verifying ZFS Config Template Vault..."
+if ! incus storage volume show is-nvme-pool is-config-vault >/dev/null 2>&1; then
+    echo "   Creating custom volume 'is-config-vault'..."
+    incus storage volume create is-nvme-pool is-config-vault
+fi
+incus storage volume set is-nvme-pool is-config-vault security.shifted=true || echo "   -> Notice: Could not update shifted flag (volume may be in use)."
 # ---------------------------------------------------------
 # Stateless Templates (Declarative Profiles)
 # ---------------------------------------------------------
 echo "-> Syncing Profiles..."
 # Loop through all profiles to reduce code duplication
-PROFILES=("default" "builder" "papermc" "vllm")
+PROFILES=("default" "builder" "papermc" "vllm" "minecraft")
 for profile in "${PROFILES[@]}"; do
     # Check if profile exists, create if it doesn't
     if ! incus profile show "$profile" >/dev/null 2>&1; then

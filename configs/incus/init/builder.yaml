@@ -1,0 +1,13 @@
+#cloud-config
+package_update: true
+packages:
+  - rsync
+  - squashfs-tools
+  - snapd
+  - squashfuse
+  - xz-utils
+  - debootstrap
+
+runcmd:
+  - snap install distrobuilder --classic
+  - mkdir -p /workspace

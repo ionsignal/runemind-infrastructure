@@ -1,0 +1,13 @@
+#cloud-config
+# This container boots from a standard Ubuntu image and uses cloud-init
+# to safely map the ZFS datasets to UID 1000 for the unprivileged edge nodes.
+# Override the default 'ubuntu' user to natively provision UID 1000 as 'minecraft'
+system_info:
+  default_user:
+    name: minecraft
+
+# Ensure the mount points exist and enforce strict unprivileged ownership on boot.
+# This guarantees the Golden Masters are always sanitized before the backend clones them.
+runcmd:
+  - mkdir -p /opt/minecraft/plugins /opt/minecraft/world /opt/minecraft/config
+  - chown -R minecraft:minecraft /opt/minecraft
