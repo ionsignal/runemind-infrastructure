@@ -886,7 +886,7 @@ _Objective: Maintain a pristine bare-metal host by isolating both the image comp
 
 The infrastructure is fully declarative and applied via the `01-apply-profiles.sh` script. This script automatically handles:
 
-- **Storage:** Provisioning the three ZFS master vaults (`is-plugins-vault`, `is-world-vault`, `is-config-vault`) with strict VFS idmapping (`security.shifted=true`).
+- **Storage:** Provisioning the three ZFS master vaults (`is-plugins-vault`, `is-world-vault`) with strict VFS idmapping (`security.shifted=true`).
 - **Builder Profile (`builder.yaml`):** Granting root-level, privileged capabilities for `distrobuilder` to mount filesystems, forcing the container onto the NVMe pool.
 - **Vault Manager Profile (`minecraft.yaml`):** Enforcing an unprivileged security baseline and statically attaching the three ZFS vaults to `/opt/minecraft/`.
 - **Init Scripts (`init/*.yaml`):** Injecting `cloud-init` payloads. The builder auto-installs compilation dependencies (`snapd`, `distrobuilder`), while the vault manager natively provisions the `minecraft` (UID 1000) service user.
@@ -936,7 +936,7 @@ incus image list
 
 ### **4. Stateful Vault Management (The Golden Masters)**
 
-_Objective: Populate the ZFS Golden Master vaults (`plugins`, `world`, `config`) with baseline files. Because these vaults are permanently attached to the `minecraft` container, we can push files directly to them at any time and enforce strict unprivileged ownership before our Fastify backend clones them for new tenants._
+_Objective: Populate the ZFS Golden Master vaults (`plugins`, `world`) with baseline files. Because these vaults are permanently attached to the `minecraft` container, we can push files directly to them at any time and enforce strict unprivileged ownership before our Fastify backend clones them for new tenants._
 
 Execute the following pipeline to update or initialize the global templates:
 
@@ -947,18 +947,27 @@ incus start minecraft
 # Populate the vaults (Pushing files directly from the host)
 # The vaults are statically mounted at /opt/minecraft inside the container.
 incus file push ./IonCore-v1.jar minecraft/opt/minecraft/plugins/
-incus file push ./server.properties minecraft/opt/minecraft/config/
-incus file push ./paper.yml minecraft/opt/minecraft/config/
+# Currently the vault manager doesn't build/run papermc
+# incus file push ./server.properties minecraft/opt/minecraft/
+# incus file push ./paper.yml minecraft/opt/minecraft/
 
 # CRITICAL: Enforce Unprivileged Ownership
 # Files pushed from the host may default to root ownership. We MUST shift ownership
 # to the 'minecraft' user (UID 1000) so the unprivileged tenant clones can read/write to them.
-incus exec minecraft -- chown -R minecraft:minecraft /opt/minecraft
+incus exec minecraft -- chown -R 1000:1000 /opt/minecraft
 
 # Verify ownership applied correctly (Should show minecraft:minecraft)
-incus exec minecraft -- ls -la /opt/minecraft/config
+incus exec minecraft -- ls -la /opt/minecraft/plugins
 
 # (Optional) Stop the utility containers to conserve host resources when not in use
 incus stop builder
 incus stop minecraft
+```
+
+## PaperMC Container Management
+
+If you ever need to run a command as the minecraft user while logged in as root, you can temporarily override the shell constraint by running:
+
+```bash
+su -s /bin/bash minecraft
 ```
