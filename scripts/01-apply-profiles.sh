@@ -29,20 +29,13 @@ if ! incus storage volume show is-nvme-pool is-plugins-vault >/dev/null 2>&1; th
     incus storage volume create is-nvme-pool is-plugins-vault
 fi
 incus storage volume set is-nvme-pool is-plugins-vault security.shifted=true || echo "   -> Notice: Could not update shifted flag (volume may be in use)."
-# Create [is-world-vault] for Golden Master cloning
+# Create [is-world-vault]:
 echo "-> Verifying ZFS World Template Vault..."
 if ! incus storage volume show is-nvme-pool is-world-vault >/dev/null 2>&1; then
     echo "   Creating custom volume 'is-world-vault'..."
     incus storage volume create is-nvme-pool is-world-vault
 fi
 incus storage volume set is-nvme-pool is-world-vault security.shifted=true || echo "   -> Notice: Could not update shifted flag (volume may be in use)."
-# Create [is-config-vault] for Golden Master cloning
-echo "-> Verifying ZFS Config Template Vault..."
-if ! incus storage volume show is-nvme-pool is-config-vault >/dev/null 2>&1; then
-    echo "   Creating custom volume 'is-config-vault'..."
-    incus storage volume create is-nvme-pool is-config-vault
-fi
-incus storage volume set is-nvme-pool is-config-vault security.shifted=true || echo "   -> Notice: Could not update shifted flag (volume may be in use)."
 # ---------------------------------------------------------
 # Stateless Templates (Declarative Profiles)
 # ---------------------------------------------------------
