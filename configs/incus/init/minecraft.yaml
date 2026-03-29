@@ -11,7 +11,6 @@ system_info:
 runcmd:
   - usermod -g 1000 minecraft
   - groupdel minecraft || true
-  - OLD_GROUP=$(getent group 1000 | cut -d: -f1)
-  - if[ "$OLD_GROUP" != "minecraft" ]; then groupmod -n minecraft $OLD_GROUP; fi
-  - mkdir -p /opt/minecraft/plugins /opt/minecraft/world /opt/minecraft/config
+  - groupmod -n minecraft lxd
+  - mkdir -p /opt/minecraft/plugins /opt/minecraft/world
   - chown -R 1000:1000 /opt/minecraft
