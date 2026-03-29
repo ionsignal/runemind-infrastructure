@@ -1,4 +1,4 @@
-# Nerrus Infrastructure Roadmap
+## Infrastructure Roadmap
 
 **Mission:** Architect and maintain a high-performance, hybrid-workload edge server balancing a ~35B parameter MoE LLM (AI Inference) and real-time Minecraft game servers (Incus) within a strict Zero-Trust DMZ environment. All workloads, including the AI engine, operate strictly within Incus containers to ensure absolute host isolation.
 
@@ -69,44 +69,41 @@ _Objective: Deploy a highly reproducible, stateless PaperMC base image and imple
 
 ---
 
-### **Stateful Orchestration & Drift**
+### **Stateful Orchestration & Drift (Hybrid Architecture)**
 
-- **[ ] 3.1. Stateful Volume Orchestration (The CSI Pattern)**
+_Architectural Pivot: To support heterogeneous workloads (Minecraft, ComfyUI, vLLM) without brittle AST parsers, we are adopting a Hybrid State Model. The "Control Plane" (Postgres) strictly dictates infrastructure boundaries, while the "Data Plane" (ZFS Disk) acts as the absolute Source of Truth for application-level configurations._
+
+- **[-] 3.1. Stateful Volume Orchestration (The CSI Pattern)**
   _Treat Fastify as a Container Storage Interface (CSI). Incus profiles remain strictly stateless. All tenant-specific ZFS datasets are dynamically provisioned, cloned, and attached by the backend during the deployment lifecycle._
-  - **Expand Incus Client (`storage.ts`):** Implement a new sub-module to interface with `/1.0/storage-pools/{pool}/volumes` to handle volume creation, deletion, and ZFS cloning (`copy`).
-  - **The Provisioning Pipeline (`InstanceService.create`):** Refactor the creation logic into a 5-step orchestration pipeline:
+  - **[✓] Expand Incus Client (`storage.ts`):** Implemented a dedicated sub-module interfacing with `/1.0/storage-pools/{pool}/volumes/custom` to handle volume creation, deletion, and near-instant ZFS cloning (`copy`).
+  - **[✓] The Provisioning Pipeline (`InstanceService.create`):** Refactored creation logic into a robust orchestration pipeline with automated rollback on failure:
     1.  **Compute:** Initialize the offline container (`tenant-123`) from the `papermc` image.
-    2.  **Provision State:** Create empty ZFS volumes for `world` and `config`. Dynamically execute a ZFS CoW Clone of `is-plugins-vault` -> `tenant-123-plugins`.
+    2.  **Provision State:** Dynamically execute ZFS CoW Clones of `is-world-vault` -> `01-tenant-world` and `is-plugins-vault` -> `01-tenant-plugins` with VFS idmapping (`security.shifted=true`).
     3.  **Attach State:** Map the volumes as `disk` devices to the container at `/opt/minecraft/...`.
-    4.  **Inject Configs:** Push `server.properties` and `jvm.env` via the `FileService`.
-    5.  **Power On:** Start the container.
-  - **ZFS Quota Enforcement:** Apply strict size limits (e.g., `size=10GiB`) to tenant `world` volumes during API creation to prevent runaway chunk generation from crashing the host NVMe pool.
-  - **Lifecycle & Teardown Policy:** Define the `InstanceService.delete` behavior (e.g., flag volumes in Postgres as "Archived" for a 30-day grace period instead of instant destruction).
-  - **Golden Master Rebase Strategy:** Engineer a mechanism to push updates from the `is-plugins-vault` (e.g., a new global `.jar`) to existing tenant clones that have already diverged.
+    4.  **Inject Configs:** Push baseline `server.properties` and `jvm.env` via the `FileService`.
+    5.  **Deferred Power On:** Container is safely locked into an `offline` state, awaiting explicit user start.
+  - **[ ] ZFS Quota Enforcement:** Apply strict size limits (e.g., `size=10GiB`) to tenant `world` volumes during API creation to prevent runaway chunk generation from crashing the host NVMe pool. (Currently missing from the `config` payload).
+  - **[ ] Lifecycle & Teardown Policy:** Refactor `InstanceService.delete` behavior. (Currently performs instant destruction; needs to be updated to flag volumes in Postgres as "Archived" for a 30-day grace period before physical ZFS destruction).
+  - **[ ] Golden Master Rebase Strategy:** Engineer a mechanism to push updates from the `is-plugins-vault` (e.g., a new global `.jar`) to existing tenant clones that have already diverged.
 
-- **[ ] 3.2. Tier 2 Filesystem Architecture (`ManagedConfigEngine`)**
-  _A specialized domain layer sitting on top of the `FileService` to handle critical, database-tracked files (e.g., `server.properties`, `paper.yml`)._
-  - **Postgres as Source of Truth:** Store managed configurations in a `managed_files` table as structured `JSONB`, alongside a `SHA-256` hash of the compiled file.
-  - **AST Compilation & Zod Reflection:** Utilize an Abstract Syntax Tree (AST) parser to convert JSONB into valid `.properties` or `.yaml` formats. Dynamically inject Zod `.describe()` metadata as physical `# comments` into the resulting file during push.
+- **[ ] 3.2. Layer 1: The Control Plane (Infrastructure State & SSoT)**
+  _Postgres acts as the absolute dictator for container boundaries, networking, and resource limits. These files are never manually edited by users._
+  - **Database-Driven Templating:** Store infrastructure variables (e.g., RAM limits, GPU allocation, port bindings) in Postgres.
+  - **Boot-Time Injection:** During container startup, Fastify compiles these variables into strictly formatted environment files (e.g., `jvm.env`, `vllm.service`) and pushes them to the container.
+  - **One-Way Enforcement (Anti-Drift):** If a user maliciously or accidentally alters these protected files via SFTP, the Control Plane blindly overwrites them on the next state transition, ensuring host routing and host memory are never compromised.
 
-- **[ ] 3.3. Configuration Drift Management (The Audit Loop)**
-  _Ensure manual changes made inside a container (e.g., via SSH) are instantly detected and reconciled with the Control Plane._
-  - Fastify pulls the live file hash from the Incus container via `FileService`.
-  - Compares the live hash against the `SHA-256` hash stored in Postgres.
-  - Mismatches trigger a "Drift Detected" warning in the Vue UI, prompting the admin to either **Overwrite Container** (push DB state) or **Import to DB** (parse live file into JSONB and update Postgres).
+- **[ ] 3.3. Layer 2: The Data Plane (Application State & Disk as SSoT)**
+  _The ZFS volume is the absolute source of truth for heterogeneous application configs (`server.properties`, `paper.yml`, ComfyUI `settings.json`). We do not store this state in Postgres, eliminating parser maintenance and respecting native app behaviors._
+  - **Live Disk I/O Pipeline:** Fastify reads the live file directly from the Incus container via `FileService`, parses it (YAML/Properties/JSON), and validates the resulting object against a Zod schema before sending it to the frontend.
+  - **Atomic Writes & ETag Locking:** When the UI saves changes, Fastify converts the JSON back to the target format and pushes it to disk. It utilizes Incus `ETag` headers to ensure atomic writes and prevent race conditions with simultaneous SFTP or in-game edits.
+  - **Caveat - The "Destructive Save":** Accept the UX tradeoff that saving via the typed UI will normalize the file format and strip manual `# comments` or custom spacing created via SFTP.
+  - **Raw Editor Fallback:** For unstructured files, complex Spigot configurations, or ComfyUI custom nodes that lack a Zod schema, provide a raw Monaco (VSCode) text editor in the browser to allow admins to edit the disk string directly (which _does_ preserve comments).
+  - **Application Lifecycle Hooks:** Implement a mechanism to prompt the user to restart the container (or auto-trigger a reload) when Data Plane files are modified, as most applications do not hot-reload configuration files.
 
-- **[ ] 3.4. Dynamic UI Generation**
-  _Leverage shared Zod schemas between the Vue 3 frontend and Fastify backend to eliminate hardcoded forms._
-  - Build a recursive `<SchemaRenderer>` Vue component to iterate over Zod objects and automatically generate typed configuration forms (booleans to toggles, enums to selects, strings to inputs) utilizing the `.describe()` metadata for tooltips.
-
-## Phase 4: Edge Routing & SSL Termination
-
-_Objective: Connect workloads to the public internet securely and route internal HTTPS._
-
-- **DDoS & Edge:** Player traffic hits `play.ionsignal.com` via TCPShield.
-- **Firewall Routing:** The upstream EFG firewall port-forwards TCP 25565 directly to the Velocity Proxy container IP.
-- **Proxy Protocol:** Velocity MUST be configured to accept Proxy Protocol (v2) from TCPShield to log true player IPs.
-- **Internal API Routing:** Caddy routes authenticated AI API requests to the AI container (`10.10.10.50:8080`), stripping buffering (`flush_interval -1`) to allow zero-latency LLM token streaming (SSE).
+- **[ ] 3.4. Dynamic UI Generation (Zod Reflection)**
+  _Leverage shared Zod schemas between the Vue 3 frontend and Fastify backend to eliminate hardcoded forms, adapting instantly to whichever file is loaded from the Data Plane._
+  - **Schema-Driven Forms:** Build a recursive `<SchemaRenderer>` Vue component. It iterates over the Zod object (e.g., `ServerPropertiesSchema`) provided by the backend, automatically mapping types to Naive UI inputs (booleans to toggles, enums to selects, numbers to sliders).
+  - **Metadata Tooltips:** Extract `.describe()` metadata from the Zod schemas to automatically generate helpful UI tooltips for complex application settings, providing self-documenting infrastructure without maintaining separate UI text.
 
 ---
 
