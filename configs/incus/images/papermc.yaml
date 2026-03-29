@@ -76,7 +76,6 @@ actions:
       # Create strictly scoped directories (Mount points for ZFS)
       mkdir -p /opt/minecraft/plugins
       mkdir -p /opt/minecraft/world
-      mkdir -p /opt/minecraft/config
 
       # Download PaperMC (1.21.10 latest build)
       wget -qO /opt/minecraft/paper.jar "https://fill-data.papermc.io/v1/objects/158703f75a26f842ea656b3dc6d75bf3d1ec176b97a2c36384d0b80b3871af53/paper-1.21.10-130.jar"
@@ -130,7 +129,7 @@ files:
       User=minecraft
       Group=minecraft
       WorkingDirectory=/opt/minecraft
-      EnvironmentFile=/opt/minecraft/config/jvm.env
+      EnvironmentFile=/opt/minecraft/jvm.env
       ExecStart=/usr/bin/java $ION_JVM_ARGS -jar paper.jar --nogui
       SuccessExitStatus=143
       Restart=on-failure

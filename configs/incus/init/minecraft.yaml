@@ -9,5 +9,9 @@ system_info:
 # Ensure the mount points exist and enforce strict unprivileged ownership on boot.
 # This guarantees the Golden Masters are always sanitized before the backend clones them.
 runcmd:
+  - usermod -g 1000 minecraft
+  - groupdel minecraft || true
+  - OLD_GROUP=$(getent group 1000 | cut -d: -f1)
+  - if[ "$OLD_GROUP" != "minecraft" ]; then groupmod -n minecraft $OLD_GROUP; fi
   - mkdir -p /opt/minecraft/plugins /opt/minecraft/world /opt/minecraft/config
-  - chown -R minecraft:minecraft /opt/minecraft
+  - chown -R 1000:1000 /opt/minecraft
