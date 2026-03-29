@@ -26,9 +26,3 @@ devices:
     pool: is-nvme-pool
     source: is-world-vault
     type: disk
-
-  config:
-    path: /opt/minecraft/config
-    pool: is-nvme-pool
-    source: is-config-vault
-    type: disk
