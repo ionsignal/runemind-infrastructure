@@ -71,7 +71,7 @@ _Objective: Deploy a highly reproducible, stateless PaperMC base image and imple
 
 ### **Stateful Orchestration & Drift (Hybrid Architecture)**
 
-_Architectural Pivot: To support heterogeneous workloads (Minecraft, ComfyUI, vLLM) without brittle AST parsers, we are adopting a Hybrid State Model. The "Control Plane" (Postgres) strictly dictates infrastructure boundaries, while the "Data Plane" (ZFS Disk) acts as the absolute Source of Truth for application-level configurations._
+_To support heterogeneous workloads (Minecraft, ComfyUI, vLLM) without brittle AST parsers, we are adopting a Hybrid State Model. The "Control Plane" (Postgres) strictly dictates infrastructure boundaries, while the "Data Plane" (ZFS Disk) acts as the absolute Source of Truth for application-level configurations._
 
 - **[-] 3.1. Stateful Volume Orchestration (The CSI Pattern)**
   _Treat Fastify as a Container Storage Interface (CSI). Incus profiles remain strictly stateless. All tenant-specific ZFS datasets are dynamically provisioned, cloned, and attached by the backend during the deployment lifecycle._
