@@ -109,8 +109,15 @@ _To support heterogeneous workloads (Minecraft, ComfyUI, vLLM) without brittle A
 
 ## Phase 5: Deferred / Backlog
 
-_Objective: Polish, edge-case hardware management, and alternative workload support._
+_Objective: Polish, edge-case hardware management, alternative workload support, and advanced user-facing features._
 
+- **[ ] Multi-Tenant Web File Browser & Large-File Transport (The Sidecar Architecture):**
+  _To support uploading and downloading massive binary files (5GB+ Minecraft worlds, 30GB+ `.safetensors` AI models) without bottlenecking the Fastify Node.js backend or the Incus hypervisor control plane, we will implement a dual-engine "Sidecar Container" architecture._
+  - **The "Dumb Pipe" Sidecar:** Provision a dedicated, unprivileged `transfer` Incus container. This container runs two lightweight, high-performance binaries: **`tusd`** (for uploads) and **Caddy** (for static downloads).
+  - **ZFS Multi-Attach (The Data Bridge):** When Fastify provisions a tenant's ZFS Custom Volume (e.g., `01-tenant-world`), it attaches that exact volume to _both_ the workload container (Minecraft/vLLM) and the `transfer` sidecar simultaneously via Incus `disk` devices. VFS idmapping (`security.shifted=true`) ensures seamless permission boundaries.
+  - **Resumable Uploads (Uppy + Tus):** The Vue 3 frontend utilizes **Uppy** to chunk and stream large files directly to the `tusd` endpoint, providing enterprise-grade pause, resume, and automatic network retries. `tusd` validates authorization via a `pre-create` webhook to Fastify before writing to disk.
+  - **Resumable Downloads (Caddy + Forward Auth):** Downloads are routed to the Caddy binary inside the sidecar, which utilizes kernel `sendfile` for zero-copy disk reads and natively supports HTTP `Range` requests for browser-level pause/resume. Caddy secures the files using `forward_auth`, forcing Fastify to validate the user's JWT before streaming begins.
+  - **Zero-Overhead:** Fastify and the Incus API (`/1.0/instances/<name>/files`) are completely bypassed for large I/O. Data flows directly between the user and the ZFS dataset, appearing instantly in the workload container with zero network-sync overhead.
 - **[ ] GPU Thermal Management:** Implement a cron/systemd service on the _host_ to monitor `nvidia-smi -q -d TEMPERATURE` and alert on thermal throttling, ensuring the high-RPM ASUS chassis fans are mitigating sustained inference loads. _(Deprioritized: Hardware is currently stable; will implement as final polish)._
 - **[ ] SGLang Engine Support:** We maintain base declarative profiles (`sglang.yaml`) and `cloud-init` configurations for SGLang. _(Deprioritized: Currently shelved due to Ampere FP8 instruction limitations, but infrastructure remains ready if future models/updates require it)._
 - **[ ] Formalize Local DNS (Split-Horizon):** Configure a local DNS record in the EFG router mapping `api.ionsignal.com` to the DMZ host IP `172.20.2.115`. _(Deprioritized: Currently using `/etc/hosts` overrides on the client laptop. Implement later to ensure universal LAN access and bypass Hairpin NAT overhead at the network edge)._
