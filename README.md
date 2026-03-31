@@ -121,6 +121,7 @@ sudo ufw deny out to 192.168.0.0/16 comment 'Block outbound to Internal 192.168.
 sudo ufw allow from 172.20.1.0/24 to any port 22 proto tcp comment 'Allow SSH Management'
 sudo ufw allow from 13.52.160.148 to any port 22 proto tcp comment 'Allow SSH AWS Bastion'
 sudo ufw allow from 172.20.3.158 to any port 22 proto tcp comment 'Allow SSH Home Laptop'
+sudo ufw allow from 172.20.3.119 to any port 22 proto tcp comment 'Allow SSH Home LAN'
 
 # HTTPS (Port 443) - Caddy / Incus UI Access
 sudo ufw allow from 172.20.1.0/24 to any port 443 proto tcp comment 'Allow HTTPS Management'
