@@ -71,26 +71,22 @@ _Objective: Deploy a highly reproducible, stateless PaperMC base image and imple
 
 ### **Stateful Orchestration & Drift (Hybrid Architecture)**
 
-_To support heterogeneous workloads (Minecraft, ComfyUI, vLLM) without brittle AST parsers, we are adopting a Hybrid State Model. The "Control Plane" (Postgres) strictly dictates infrastructure boundaries, while the "Data Plane" (ZFS Disk) acts as the absolute Source of Truth for application-level configurations._
+_To support heterogeneous workloads (Minecraft, ComfyUI, vLLM) we are adopting a Hybrid State Model. The "Control Plane" (Postgres) strictly dictates infrastructure boundaries, while the "Data Plane" (ZFS Disk) acts as the absolute Source of Truth for application-level configurations._
 
-- **[-] 3.1. Stateful Volume Orchestration (The CSI Pattern)**
-  _Treat Fastify as a Container Storage Interface (CSI). Incus profiles remain strictly stateless. All tenant-specific ZFS datasets are dynamically provisioned, cloned, and attached by the backend during the deployment lifecycle._
-  - **[✓] Expand Incus Client (`storage.ts`):** Implemented a dedicated sub-module interfacing with `/1.0/storage-pools/{pool}/volumes/custom` to handle volume creation, deletion, and near-instant ZFS cloning (`copy`).
-  - **[✓] The Provisioning Pipeline (`InstanceService.create`):** Refactored creation logic into a robust orchestration pipeline with automated rollback on failure:
-    1.  **Compute:** Initialize the offline container (`tenant-123`) from the `papermc` image.
-    2.  **Provision State:** Dynamically execute ZFS CoW Clones of `is-world-vault` -> `01-tenant-world` and `is-plugins-vault` -> `01-tenant-plugins` with VFS idmapping (`security.shifted=true`).
-    3.  **Attach State:** Map the volumes as `disk` devices to the container at `/opt/minecraft/...`.
-    4.  **Inject Configs:** Push baseline `server.properties` and `jvm.env` via the `FileService`.
-    5.  **Deferred Power On:** Container is safely locked into an `offline` state, awaiting explicit user start.
-  - **[ ] ZFS Quota Enforcement:** Apply strict size limits (e.g., `size=10GiB`) to tenant `world` volumes during API creation to prevent runaway chunk generation from crashing the host NVMe pool. (Currently missing from the `config` payload).
-  - **[ ] Lifecycle & Teardown Policy:** Refactor `InstanceService.delete` behavior. (Currently performs instant destruction; needs to be updated to flag volumes in Postgres as "Archived" for a 30-day grace period before physical ZFS destruction).
-  - **[ ] Golden Master Rebase Strategy:** Engineer a mechanism to push updates from the `is-plugins-vault` (e.g., a new global `.jar`) to existing tenant clones that have already diverged.
+- **[-] 3.1. The Universal Orchestration Engine (CSI & Namespaces)**
+  _Treat Fastify as a universal deployment engine. Instead of hardcoded provisioning scripts, the orchestrator reads declarative "configurations" and dynamically executes infrastructure primitives (ZFS, Incus, GPUs) across strictly isolated tenant boundaries._
+  - **[✓] JIT Tenant/User Namespaces:** Implement Just-In-Time (JIT) project provisioning. Before an instance boots, the orchestrator ensures a strict `user-<uuid>` boundary exists in Incus, cleanly separating isolated user workloads from global system services (which run in the `default` project).
+  - **[ ] Configuration-Driven Storage (Advanced CSI):** Upgrade the storage client to handle two distinct topological requirements defined by the app configurations:
+    - _Cloned/Mutable:_ Execute near-instant ZFS CoW clones of base templates into the tenant's namespace (e.g., isolated Minecraft worlds or ComfyUI outputs).
+    - _Shared/Read-Only:_ Mount massive global datasets directly to tenant containers without copying data (e.g., attaching a 500GB AI Model Vault to 10 different users simultaneously).
+  - **[ ] ZFS Quota Enforcement:** Apply strict size limits (e.g., `size=10GiB`) to dynamically provisioned tenant volumes to prevent runaway disk usage from crashing the host NVMe pool.
 
-- **[ ] 3.2. Layer 1: The Control Plane (Infrastructure State & SSoT)**
-  _Postgres acts as the absolute dictator for container boundaries, networking, and resource limits. These files are never manually edited by users._
-  - **Database-Driven Templating:** Store infrastructure variables (e.g., RAM limits, GPU allocation, port bindings) in Postgres.
-  - **Boot-Time Injection:** During container startup, Fastify compiles these variables into strictly formatted environment files (e.g., `jvm.env`, `vllm.service`) and pushes them to the container.
-  - **One-Way Enforcement (Anti-Drift):** If a user maliciously or accidentally alters these protected files via SFTP, the Control Plane blindly overwrites them on the next state transition, ensuring host routing and host memory are never compromised.
+- **[ ] 3.2. Layer 1: The Control Plane (Registry & Hardware Ledger)**
+  _Separate "What an app is" (File-System) from "Who owns it and what hardware it gets" (Postgres). This layer strictly dictates container boundaries, networking, and resource limits._
+  - **The Configuration Registry (File-System SSoT):** Define applications (Minecraft, ComfyUI, vLLM) via declarative YAML manifests stored on the host (e.g., `/opt/ionhost/applications/*.yaml`). Fastify parses these on boot to understand base images, required mounts, and `systemd` init scripts, allowing new apps to be added via GitOps without recompiling the backend.
+  - **The Hardware Ledger (Postgres SSoT):** Postgres acts as the absolute dictator of state. It tracks instance ownership, the assigned Configurations ID, the target Incus namespace (`tenant-123` vs `default`), and GPU lease assignments.
+  - **Boot-Time Compilation:** When an instance boots, Fastify merges the static YAML Configurations definition with the user's specific Postgres limits (e.g., RAM quotas). It compiles these into standard formats (`.env` files) and pushes them instantly via the Incus File API.
+  - **One-Way Enforcement:** If a user alters these protected boot files via SFTP/SSH, the Control Plane blindly overwrites them on the next state transition (e.g., clicking "Restart"), ensuring host routing, hardware limits, and core app execution are never compromised.
 
 - **[ ] 3.3. Layer 2: The Data Plane (Application State & Disk as SSoT)**
   _The ZFS volume is the absolute source of truth for heterogeneous application configs (`server.properties`, `paper.yml`, ComfyUI `settings.json`). We do not store this state in Postgres, eliminating parser maintenance and respecting native app behaviors._
@@ -118,6 +114,8 @@ _Objective: Polish, edge-case hardware management, alternative workload support,
   - **Resumable Uploads (Uppy + Tus):** The Vue 3 frontend utilizes **Uppy** to chunk and stream large files directly to the `tusd` endpoint, providing enterprise-grade pause, resume, and automatic network retries. `tusd` validates authorization via a `pre-create` webhook to Fastify before writing to disk.
   - **Resumable Downloads (Caddy + Forward Auth):** Downloads are routed to the Caddy binary inside the sidecar, which utilizes kernel `sendfile` for zero-copy disk reads and natively supports HTTP `Range` requests for browser-level pause/resume. Caddy secures the files using `forward_auth`, forcing Fastify to validate the user's JWT before streaming begins.
   - **Zero-Overhead:** Fastify and the Incus API (`/1.0/instances/<name>/files`) are completely bypassed for large I/O. Data flows directly between the user and the ZFS dataset, appearing instantly in the workload container with zero network-sync overhead.
+- **[ ] Lifecycle & Archival Policy:** Refactor `InstanceService.delete` behavior. Instead of instant destruction, flag volumes in Postgres as "Archived" and utilize Incus to freeze the datasets for a 30-day grace period before executing physical ZFS destruction.
+- **[ ] Fluid Hardware Hot-Plugging (GPU Leases):** Treat host GPUs as a requestable pool rather than static assignments. The orchestrator dynamically hot-plugs PCIe devices (`nvidia.runtime`) into offline containers just before boot, and releases them back to the hardware pool when the container spins down or goes idle.
 - **[ ] GPU Thermal Management:** Implement a cron/systemd service on the _host_ to monitor `nvidia-smi -q -d TEMPERATURE` and alert on thermal throttling, ensuring the high-RPM ASUS chassis fans are mitigating sustained inference loads. _(Deprioritized: Hardware is currently stable; will implement as final polish)._
 - **[ ] SGLang Engine Support:** We maintain base declarative profiles (`sglang.yaml`) and `cloud-init` configurations for SGLang. _(Deprioritized: Currently shelved due to Ampere FP8 instruction limitations, but infrastructure remains ready if future models/updates require it)._
 - **[ ] Formalize Local DNS (Split-Horizon):** Configure a local DNS record in the EFG router mapping `api.ionsignal.com` to the DMZ host IP `172.20.2.115`. _(Deprioritized: Currently using `/etc/hosts` overrides on the client laptop. Implement later to ensure universal LAN access and bypass Hairpin NAT overhead at the network edge)._
