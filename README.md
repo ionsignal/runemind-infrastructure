@@ -2,14 +2,54 @@
 
 ## Base OS Installation & UEFI Initialization
 
-### **0. UEFI & NVRAM Baseline**
+### **1. Install IPMI Tools install**
+
+```bash
+sudo apt update
+sudo apt install ipmitool
+sudo modprobe ipmi_devintf
+sudo modprobe ipmi_si
+sudo vim /etc/modules
+```
+
+```
+ipmi_devintf
+ipmi_si
+```
+
+### **2. JournalD Configuration**
+
+```bash
+sudo vim /etc/systemd/journald.conf
+```
+
+```ini
+[Journal]
+Compress=yes
+Storage=persistent
+Seal=no
+SyncIntervalSec=5m
+SystemMaxUse=1G
+SystemMaxFileSize=8M
+SystemMaxFiles=100
+RuntimeMaxUse=1G
+MaxRetentionSec=1month
+MaxFileSec=1month
+Audit=no
+```
+
+```bash
+sudo systemctl restart systemd-journald
+```
+
+### **3. UEFI & NVRAM Baseline**
 
 - **Boot Mode:** UEFI Only (Disable Legacy/CSM).
 - **Secure Boot:** Disabled (Required for NVIDIA driver/CUDA compilation).
 - **NVRAM Cleanup:** `sudo efibootmgr` -> delete stale entries (e.g., `sudo efibootmgr -b XXXX -B`).
 - **OS Target:** Ubuntu 24.04 LTS on 250GB NVMe (`ext4`, **No LVM**).
 
-### **1. Static Network Configuration (Netplan)**
+### **4. Static Network Configuration (Netplan)**
 
 To prevent ARP flux on the DMZ switch and provide a highly available, stable default gateway for the Incus containers, the dual 1GbE interfaces are bonded using Active-Backup (Mode 1). This ensures zero-downtime failover without requiring 802.3ad (LACP) configuration on the upstream EFG.
 
@@ -48,7 +88,7 @@ network:
         mii-monitor-interval: 100
 ```
 
-### **2. Safely Apply and Verify**
+### **5. Safely Apply and Verify**
 
 Apply the configuration using `try` to prevent lockouts during the interface transition.
 
@@ -63,7 +103,7 @@ ip -br a
 cat /proc/net/bonding/bond0
 ```
 
-### **3. SSH Access Control**
+### **6. SSH Access Control**
 
 Enforce key-based authentication only.
 
@@ -85,7 +125,7 @@ AllowUsers oliver
 sudo systemctl restart ssh
 ```
 
-### **4. Zero-Trust Firewall (UFW)**
+### **7. Zero-Trust Firewall (UFW)**
 
 Implement strict inbound routing and outbound fencing to prevent lateral movement from the DMZ.
 
@@ -161,7 +201,7 @@ sudo ufw reload
 sudo ufw status numbered
 ```
 
-### **5. High-Performance ZFS Storage Provisioning (NVMe)**
+### **8. High-Performance ZFS Storage Provisioning (NVMe)**
 
 Provision the drives as a unified, high-performance ZFS storage pool dedicated entirely to Incus. This allows Incus to manage ephemeral containers, persistent decoupled states (Custom Volumes), and a strictly isolated, GPU-passthrough.
 
