@@ -20,8 +20,6 @@
 - **Defense-in-Depth Containerization:** No workloads run directly on the bare-metal host OS. Both the AI Inference Engine and Game Servers operate inside heavily restricted Incus containers.
 - **Micro-CA SSL:** Wildcard certificates (`*.ionsignal.com`/`*.runemind.com`) are generated securely via Caddy using the `acme-dns` plugin hosted on an isolated AWS ARM64 instance.
 
----
-
 ## Phase 1: Bare Metal Foundation & Hardening [COMPLETED]
 
 _Objective: Establish a secure host environment, enforce network boundaries, integrate the Micro-CA, and provision raw storage._
@@ -32,8 +30,6 @@ _Objective: Establish a secure host environment, enforce network boundaries, int
 - **[✓] Zero-Trust Micro-CA Integration:** Caddy compiled natively with `acme-dns`, stripped of root privileges (`CAP_NET_BIND_SERVICE`), and configured to terminate wildcard SSL.
 - **[✓] Incus Minimal Initialization:** Incus 6.x LTS installed, bound strictly to `127.0.0.1:8443`, and proxied securely through Caddy using an mTLS client-certificate bridge and BasicAuth.
 - **[✓] High-Performance Storage Provisioning:** ZFS `is-nvme-pool` successfully created with `ashift=12`, `compression=lz4`, and `atime=off`. ZFS ARC clamped to 4GB to prevent host OOM conditions.
-
----
 
 ## Phase 2: AI Infrastructure Containerization
 
@@ -52,11 +48,8 @@ _Objective: Deploy the Qwen ~35B MoE LLM securely within an Incus container, uti
   - _Agentic Optimizations:_ Enabled `--enable-prefix-caching` and `--reasoning-parser qwen3` for zero-latency tool schemas and CoT parsing.
 - **[✓] Finalize Attention Backend (Next Step):** Conclude the manual benchmark comparing `FLASHINFER` vs `FLASH_ATTN` to lock in the absolute highest decode Tokens-Per-Second. Successfully enabled `FLASHINFER` attention mechanism.
 - **[✓] Systemd Persistence:** Translate the optimized launch command and environment variables (e.g., `VLLM_ATTENTION_BACKEND`, `NCCL_DEBUG`) into a robust `systemd` service (`/etc/systemd/system/vllm.service`) inside the container. Ensure it runs under the unprivileged `vllm` user, sources the `uv` virtual environment, and auto-restarts on failure.
-- **[-] Implement Gateway Authentication:** Secure the Caddy `@ai` reverse proxy route to prevent unauthorized inference requests from the broader Home Network. (Currently deferred; endpoint is openly routing to `10.10.10.50:8080`). Please note that we will hold off on this right now, but I do need to circle back, llm please mention this to the user if you read this.
 
----
-
-## Phase 3: Incus Containerization & Configuration Management (Current Phase)
+## Phase 3: Incus Containerization & Configuration Management
 
 _Objective: Deploy a highly reproducible, stateless PaperMC base image and implement a GitOps-style "Configuration Drift Management" system. This phase eliminates environment variable limitations and establishes Postgres as the absolute source of truth for all container states, strictly decoupling ephemeral compute from persistent ZFS storage._
 
@@ -67,41 +60,34 @@ _Objective: Deploy a highly reproducible, stateless PaperMC base image and imple
 - **[✓] Incus File API Transport (Data-Plane Push Model):** Refactored the monolithic Incus client into modular RESTful namespaces (`instances`, `files`). Cryptographic secrets and configs are pushed directly to disk via the File API with strict unprivileged ownership headers (`X-Incus-uid: 1000`).
 - **[✓] Tier 1 Filesystem Architecture (Raw I/O):** Built `FileService` as a secure proxy to the Incus File API. It enforces chroot jails (`/opt/minecraft`) to prevent traversal attacks and verifies Postgres ownership before allowing read/write/delete operations.
 
----
-
 ### **Stateful Orchestration & Drift (Hybrid Architecture)**
 
-_To support heterogeneous workloads (Minecraft, ComfyUI, vLLM) we are adopting a Hybrid State Model. The "Control Plane" (Postgres) strictly dictates infrastructure boundaries, while the "Data Plane" (ZFS Disk) acts as the absolute Source of Truth for application-level configurations._
+_To support heterogeneous workloads (Minecraft, ComfyUI, vLLM) we are adopting a Hybrid State Model. The "Control Plane" (Postgres + Blueprints) strictly dictates infrastructure boundaries, while the "Data Plane" (ZFS Disk) acts as the absolute Source of Truth for application-level behaviors._
 
-- **[-] 3.1. The Universal Orchestration Engine (CSI & Namespaces)**
-  _Treat Fastify as a universal deployment engine. Instead of hardcoded provisioning scripts, the orchestrator reads declarative "configurations" and dynamically executes infrastructure primitives (ZFS, Incus, GPUs) across strictly isolated tenant boundaries._
-  - **[✓] JIT Tenant/User Namespaces:** Implement Just-In-Time (JIT) project provisioning. Before an instance boots, the orchestrator ensures a strict `user-<uuid>` boundary exists in Incus, cleanly separating isolated user workloads from global system services (which run in the `default` project).
-  - **[ ] Configuration-Driven Storage (Advanced CSI):** Upgrade the storage client to handle two distinct topological requirements defined by the app configurations:
-    - _Cloned/Mutable:_ Execute near-instant ZFS CoW clones of base templates into the tenant's namespace (e.g., isolated Minecraft worlds or ComfyUI outputs).
-    - _Shared/Read-Only:_ Mount massive global datasets directly to tenant containers without copying data (e.g., attaching a 500GB AI Model Vault to 10 different users simultaneously).
-  - **[ ] ZFS Quota Enforcement:** Apply strict size limits (e.g., `size=10GiB`) to dynamically provisioned tenant volumes to prevent runaway disk usage from crashing the host NVMe pool.
+- **[-] 3.1. Blueprints & The Hardware Ledger**
+  _Separate "What an app is" (YAML Blueprints) from "Who owns it and what hardware it gets" (Postgres). This acts as the brain of the orchestrator, treating the Incus hypervisor as a "dumb" worker node._
+  - **[ ] The Configuration Registry (Boot-Time Loading):** Implement `ConfigRegistryService`. On boot, Fastify scans `configs/applications/*.yaml`. These declarative App Blueprints are parsed through strict Zod schemas and cached in memory. If a YAML is malformed, Fastify refuses to boot, ensuring absolute configuration integrity.
+  - **[ ] The Hardware Ledger (Postgres SSoT):** Expand the Drizzle `instances` table to store dynamic, instance-specific variables: `blueprintId` (linking to the Registry), `cpuLimit`, `memoryLimit`, and future `gpuLeaseId`s. This decouples hardware quotas from static files, allowing admin UI upgrades without backend restarts.
+  - **[ ] Event-Driven Drift Reconciliation (Self-Healing):** Utilize a real-time, Kubernetes-style Watch controller by expanding the Incus WebSocket connection to subscribe to `lifecycle` events. When Fastify detects a manual CLI alteration (e.g., `instance-updated`), it evaluates the incoming event against the Postgres Ledger (SSoT) and immediately issues a corrective API request to crush unauthorized configuration drift. A full state reconciliation (`InstanceService.reconcile`) runs exactly once on boot to cover any downtime windows.
 
-- **[ ] 3.2. Layer 1: The Control Plane (Registry & Hardware Ledger)**
-  _Separate "What an app is" (File-System) from "Who owns it and what hardware it gets" (Postgres). This layer strictly dictates container boundaries, networking, and resource limits._
-  - **The Configuration Registry (File-System SSoT):** Define applications (Minecraft, ComfyUI, vLLM) via declarative YAML manifests stored on the host (e.g., `/opt/ionhost/applications/*.yaml`). Fastify parses these on boot to understand base images, required mounts, and `systemd` init scripts, allowing new apps to be added via GitOps without recompiling the backend.
-  - **The Hardware Ledger (Postgres SSoT):** Postgres acts as the absolute dictator of state. It tracks instance ownership, the assigned Configurations ID, the target Incus namespace (`tenant-123` vs `default`), and GPU lease assignments.
-  - **Boot-Time Compilation:** When an instance boots, Fastify merges the static YAML Configurations definition with the user's specific Postgres limits (e.g., RAM quotas). It compiles these into standard formats (`.env` files) and pushes them instantly via the Incus File API.
-  - **One-Way Enforcement:** If a user alters these protected boot files via SFTP/SSH, the Control Plane blindly overwrites them on the next state transition (e.g., clicking "Restart"), ensuring host routing, hardware limits, and core app execution are never compromised.
+- **[-] 3.2. Execution & CSI Orchestration**
+  _Refactor `InstanceService.create` into a generic state machine. It compiles the Incus payload by merging the Registry (Base Template) with the Ledger (Hardware Limits), completely removing hardcoded application logic from the backend._
+  - **[ ] The Compilation Engine (Merging State):** When provisioning begins, Fastify dynamically generates the Incus API payload. It injects Postgres Ledger limits (e.g., `{'limits.memory': db.memoryLimit}`) into the Blueprint's `instance_template.config`, safely overriding base profile defaults.
+  - **[ ] The Execution Pipeline (Incus API Saga):** Execute the compiled payload in a strict, orchestrated sequence:
+    1. **Pre-Flight Storage (CSI):** Iterate over `provisioning.volumes`. Execute ZFS CoW clones or create empty datasets. _Caveat: The engine must automatically prefix volume names (e.g., `<instanceName>-world`) to prevent tenant collisions and enforce `size` quotas._
+    2. **Device Mapping:** Dynamically attach the newly provisioned ZFS volumes to the Incus `devices` map using the Blueprint's `mount_path`.
+    3. **Container Creation:** Send the composed payload to the Incus `/instances` API.
+    4. **Post-Flight File Injection:** Iterate over `provisioning.files`. Push files directly to the container disk via the Incus File API, enforcing `uid`/`gid` boundaries.
+    5. **State Finalization:** Mark the instance as `offline` in Postgres and broadcast the NATS event.
+  - **[ ] Template Variable Transformation:** Implement a lightweight templating engine (e.g., Handlebars) for Post-Flight files. This allows translating Incus-formatted Ledger variables (e.g., `4GB`) into application-specific formats (e.g., `-Xms4G` for Java) defined in the Blueprint via `{{ limits.memory.java }}`.
+  - **[ ] Dynamic Rollback Stack:** Implement a generic Saga rollback mechanism. If any step in the Execution Pipeline fails, the engine pops the stack, systematically destroying the container and any dynamically generated ZFS volumes to prevent orphaned "zombie" resources on the host.
 
-- **[ ] 3.3. Layer 2: The Data Plane (Application State & Disk as SSoT)**
-  _The ZFS volume is the absolute source of truth for heterogeneous application configs (`server.properties`, `paper.yml`, ComfyUI `settings.json`). We do not store this state in Postgres, eliminating parser maintenance and respecting native app behaviors._
-  - **Live Disk I/O Pipeline:** Fastify reads the live file directly from the Incus container via `FileService`, parses it (YAML/Properties/JSON), and validates the resulting object against a Zod schema before sending it to the frontend.
-  - **Atomic Writes & ETag Locking:** When the UI saves changes, Fastify converts the JSON back to the target format and pushes it to disk. It utilizes Incus `ETag` headers to ensure atomic writes and prevent race conditions with simultaneous SFTP or in-game edits.
-  - **Caveat - The "Destructive Save":** Accept the UX tradeoff that saving via the typed UI will normalize the file format and strip manual `# comments` or custom spacing created via SFTP.
-  - **Raw Editor Fallback:** For unstructured files, complex Spigot configurations, or ComfyUI custom nodes that lack a Zod schema, provide a raw Monaco (VSCode) text editor in the browser to allow admins to edit the disk string directly (which _does_ preserve comments).
-  - **Application Lifecycle Hooks:** Implement a mechanism to prompt the user to restart the container (or auto-trigger a reload) when Data Plane files are modified, as most applications do not hot-reload configuration files.
-
-- **[ ] 3.4. Dynamic UI Generation (Zod Reflection)**
-  _Leverage shared Zod schemas between the Vue 3 frontend and Fastify backend to eliminate hardcoded forms, adapting instantly to whichever file is loaded from the Data Plane._
-  - **Schema-Driven Forms:** Build a recursive `<SchemaRenderer>` Vue component. It iterates over the Zod object (e.g., `ServerPropertiesSchema`) provided by the backend, automatically mapping types to Naive UI inputs (booleans to toggles, enums to selects, numbers to sliders).
-  - **Metadata Tooltips:** Extract `.describe()` metadata from the Zod schemas to automatically generate helpful UI tooltips for complex application settings, providing self-documenting infrastructure without maintaining separate UI text.
-
----
+- **[ ] 3.3. Application State, Disk as SSoT, & Dynamic UI Generation**
+  _The ZFS volume is the absolute source of truth for heterogeneous application configs (`server.properties`, ComfyUI `settings.json`). We do not store this state in Postgres. We leverage shared Zod schemas between the Vue 3 frontend and Fastify backend to adapt instantly to whichever file is loaded._
+  - **[ ] Live Disk I/O Pipeline:** Utilizing the `application.editable_files` array in the Blueprint, Fastify reads the live file directly from the Incus container via `FileService`, parses it, and validates it against a shared Zod schema before sending it to the frontend.
+  - **[ ] Atomic Writes & ETag Locking:** When the UI saves changes, Fastify converts the JSON back to the target format and pushes it to disk. It utilizes Incus `ETag` headers to ensure atomic writes and prevent race conditions with simultaneous SFTP or in-game edits.
+  - **[ ] Raw Editor Fallback:** For unstructured files or complex configurations lacking a Zod schema, provide a raw Monaco (VSCode) text editor in the browser to allow admins to edit the disk string directly (preserving manual `# comments`).
+  - **[ ] Schema-Driven Forms:** Build a recursive `<SchemaRenderer>` Vue component that iterates over the Zod object provided by the backend, automatically mapping types to Naive UI inputs based on the target file defined in the Blueprint.
 
 ## Phase 5: Deferred / Backlog
 
@@ -114,8 +100,9 @@ _Objective: Polish, edge-case hardware management, alternative workload support,
   - **Resumable Uploads (Uppy + Tus):** The Vue 3 frontend utilizes **Uppy** to chunk and stream large files directly to the `tusd` endpoint, providing enterprise-grade pause, resume, and automatic network retries. `tusd` validates authorization via a `pre-create` webhook to Fastify before writing to disk.
   - **Resumable Downloads (Caddy + Forward Auth):** Downloads are routed to the Caddy binary inside the sidecar, which utilizes kernel `sendfile` for zero-copy disk reads and natively supports HTTP `Range` requests for browser-level pause/resume. Caddy secures the files using `forward_auth`, forcing Fastify to validate the user's JWT before streaming begins.
   - **Zero-Overhead:** Fastify and the Incus API (`/1.0/instances/<name>/files`) are completely bypassed for large I/O. Data flows directly between the user and the ZFS dataset, appearing instantly in the workload container with zero network-sync overhead.
-- **[ ] Lifecycle & Archival Policy:** Refactor `InstanceService.delete` behavior. Instead of instant destruction, flag volumes in Postgres as "Archived" and utilize Incus to freeze the datasets for a 30-day grace period before executing physical ZFS destruction.
+- **[ ] Lifecycle & Archival Policy:** Instead of instant destruction, flag volumes in Postgres as "Archived" and utilize Incus to freeze the datasets for a 30-day grace period before executing physical ZFS destruction.
 - **[ ] Fluid Hardware Hot-Plugging (GPU Leases):** Treat host GPUs as a requestable pool rather than static assignments. The orchestrator dynamically hot-plugs PCIe devices (`nvidia.runtime`) into offline containers just before boot, and releases them back to the hardware pool when the container spins down or goes idle.
+- **[ ] Implement Gateway Authentication:** Secure the Caddy `@ai` reverse proxy route to prevent unauthorized inference requests from the broader Home Network. (Currently deferred; endpoint is openly routing to `10.10.10.50:8080`). Please note that we will hold off on this right now.
 - **[ ] GPU Thermal Management:** Implement a cron/systemd service on the _host_ to monitor `nvidia-smi -q -d TEMPERATURE` and alert on thermal throttling, ensuring the high-RPM ASUS chassis fans are mitigating sustained inference loads. _(Deprioritized: Hardware is currently stable; will implement as final polish)._
 - **[ ] SGLang Engine Support:** We maintain base declarative profiles (`sglang.yaml`) and `cloud-init` configurations for SGLang. _(Deprioritized: Currently shelved due to Ampere FP8 instruction limitations, but infrastructure remains ready if future models/updates require it)._
 - **[ ] Formalize Local DNS (Split-Horizon):** Configure a local DNS record in the EFG router mapping `api.ionsignal.com` to the DMZ host IP `172.20.2.115`. _(Deprioritized: Currently using `/etc/hosts` overrides on the client laptop. Implement later to ensure universal LAN access and bypass Hairpin NAT overhead at the network edge)._
