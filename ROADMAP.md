@@ -64,11 +64,10 @@ _Objective: Deploy a highly reproducible, stateless PaperMC base image and imple
 
 _To support heterogeneous workloads (Minecraft, ComfyUI, vLLM) we are adopting a Hybrid State Model. The "Control Plane" (Postgres + Blueprints) strictly dictates infrastructure boundaries, while the "Data Plane" (ZFS Disk) acts as the absolute Source of Truth for application-level behaviors._
 
-- **[-] 3.1. Blueprints & The Hardware Ledger**
+- **[✓] 3.1. Blueprints & The Hardware Ledger**
   _Separate "What an app is" (YAML Blueprints) from "Who owns it and what hardware it gets" (Postgres). This acts as the brain of the orchestrator, treating the Incus hypervisor as a "dumb" worker node._
-  - **[ ] The Configuration Registry (Boot-Time Loading):** Implement `ConfigRegistryService`. On boot, Fastify scans `configs/applications/*.yaml`. These declarative App Blueprints are parsed through strict Zod schemas and cached in memory. If a YAML is malformed, Fastify refuses to boot, ensuring absolute configuration integrity.
-  - **[ ] The Hardware Ledger (Postgres SSoT):** Expand the Drizzle `instances` table to store dynamic, instance-specific variables: `blueprintId` (linking to the Registry), `cpuLimit`, `memoryLimit`, and future `gpuLeaseId`s. This decouples hardware quotas from static files, allowing admin UI upgrades without backend restarts.
-  - **[ ] Event-Driven Drift Reconciliation (Self-Healing):** Utilize a real-time, Kubernetes-style Watch controller by expanding the Incus WebSocket connection to subscribe to `lifecycle` events. When Fastify detects a manual CLI alteration (e.g., `instance-updated`), it evaluates the incoming event against the Postgres Ledger (SSoT) and immediately issues a corrective API request to crush unauthorized configuration drift. A full state reconciliation (`InstanceService.reconcile`) runs exactly once on boot to cover any downtime windows.
+  - **[✓] The Configuration Registry (Boot-Time Loading):** Implemented `DefinitionRegistryService`. On boot, Fastify scans `configs/applications/*.yaml`, parsing and strictly validating them against Zod schemas into an in-memory cache. Malformed blueprints trigger a fail-fast boot halt to guarantee configuration integrity.
+  - **[✓] The Hardware Ledger (Postgres SSoT):** Expanded the Drizzle `instances` table with `definition`, `cpu`, and `memory` columns. This strictly decouples hardware quotas from static application configurations, allowing seamless underlying infrastructure updates.
 
 - **[-] 3.2. Execution & CSI Orchestration**
   _Refactor `InstanceService.create` into a generic state machine. It compiles the Incus payload by merging the Registry (Base Template) with the Ledger (Hardware Limits), completely removing hardcoded application logic from the backend._
@@ -81,6 +80,9 @@ _To support heterogeneous workloads (Minecraft, ComfyUI, vLLM) we are adopting a
     5. **State Finalization:** Mark the instance as `offline` in Postgres and broadcast the NATS event.
   - **[ ] Template Variable Transformation:** Implement a lightweight templating engine (e.g., Handlebars) for Post-Flight files. This allows translating Incus-formatted Ledger variables (e.g., `4GB`) into application-specific formats (e.g., `-Xms4G` for Java) defined in the Blueprint via `{{ limits.memory.java }}`.
   - **[ ] Dynamic Rollback Stack:** Implement a generic Saga rollback mechanism. If any step in the Execution Pipeline fails, the engine pops the stack, systematically destroying the container and any dynamically generated ZFS volumes to prevent orphaned "zombie" resources on the host.
+  - **[ ] tRPC & UI Hardware Quota Integration:** Update the `instance.create` tRPC mutation (and eventually the Vue UI) to accept user-defined `cpu` and `memory` limits, passing them through to the execution pipeline rather than relying on backend defaults.
+  - **[ ] Micro-Engine Array Support:** Enhance the `interpolate` utility regex to safely parse and resolve array indices (e.g., `{{ network.ports[0] }}`) to support more complex blueprint variables.
+  - **[ ] Build Configuration Cleanup:** Externalize the `yaml` dependency in `packages/ionhost/vite.config.ts` to prevent it from being bundled directly into the server distribution.
 
 - **[ ] 3.3. Application State, Disk as SSoT, & Dynamic UI Generation**
   _The ZFS volume is the absolute source of truth for heterogeneous application configs (`server.properties`, ComfyUI `settings.json`). We do not store this state in Postgres. We leverage shared Zod schemas between the Vue 3 frontend and Fastify backend to adapt instantly to whichever file is loaded._
@@ -89,7 +91,7 @@ _To support heterogeneous workloads (Minecraft, ComfyUI, vLLM) we are adopting a
   - **[ ] Raw Editor Fallback:** For unstructured files or complex configurations lacking a Zod schema, provide a raw Monaco (VSCode) text editor in the browser to allow admins to edit the disk string directly (preserving manual `# comments`).
   - **[ ] Schema-Driven Forms:** Build a recursive `<SchemaRenderer>` Vue component that iterates over the Zod object provided by the backend, automatically mapping types to Naive UI inputs based on the target file defined in the Blueprint.
 
-## Phase 5: Deferred / Backlog
+## Deferred / Backlog
 
 _Objective: Polish, edge-case hardware management, alternative workload support, and advanced user-facing features._
 
@@ -100,6 +102,7 @@ _Objective: Polish, edge-case hardware management, alternative workload support,
   - **Resumable Uploads (Uppy + Tus):** The Vue 3 frontend utilizes **Uppy** to chunk and stream large files directly to the `tusd` endpoint, providing enterprise-grade pause, resume, and automatic network retries. `tusd` validates authorization via a `pre-create` webhook to Fastify before writing to disk.
   - **Resumable Downloads (Caddy + Forward Auth):** Downloads are routed to the Caddy binary inside the sidecar, which utilizes kernel `sendfile` for zero-copy disk reads and natively supports HTTP `Range` requests for browser-level pause/resume. Caddy secures the files using `forward_auth`, forcing Fastify to validate the user's JWT before streaming begins.
   - **Zero-Overhead:** Fastify and the Incus API (`/1.0/instances/<name>/files`) are completely bypassed for large I/O. Data flows directly between the user and the ZFS dataset, appearing instantly in the workload container with zero network-sync overhead.
+- **[ ] Event-Driven Drift Reconciliation (Self-Healing):** Utilize a real-time, Kubernetes-style Watch controller by expanding the Incus WebSocket connection to subscribe to `lifecycle` events. When Fastify detects a manual CLI alteration (e.g., `instance-updated`), it evaluates the incoming event against the Postgres Ledger (SSoT) and immediately issues a corrective API request to crush unauthorized configuration drift. A full state reconciliation (`InstanceService.reconcile`) runs exactly once on boot to cover any downtime windows.
 - **[ ] Lifecycle & Archival Policy:** Instead of instant destruction, flag volumes in Postgres as "Archived" and utilize Incus to freeze the datasets for a 30-day grace period before executing physical ZFS destruction.
 - **[ ] Fluid Hardware Hot-Plugging (GPU Leases):** Treat host GPUs as a requestable pool rather than static assignments. The orchestrator dynamically hot-plugs PCIe devices (`nvidia.runtime`) into offline containers just before boot, and releases them back to the hardware pool when the container spins down or goes idle.
 - **[ ] Implement Gateway Authentication:** Secure the Caddy `@ai` reverse proxy route to prevent unauthorized inference requests from the broader Home Network. (Currently deferred; endpoint is openly routing to `10.10.10.50:8080`). Please note that we will hold off on this right now.
