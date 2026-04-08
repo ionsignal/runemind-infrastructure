@@ -725,7 +725,22 @@ incus config trust add-certificate /etc/caddy/incus-certs/caddy.crt --name caddy
 incus config trust list
 ```
 
-#### **5.3. Generate BasicAuth Password for the Web UI**
+#### **5.3. Configure CORS for the Web UI (WebSockets)**
+
+Because Caddy serves the UI over a public domain (`incus.ionsignal.com`) but Incus is bound to a local IP (`10.10.10.1`), Incus will block the browser's WebSocket connections (used for the terminal and live events) due to an `Origin` mismatch. We must explicitly whitelist the domain.
+
+```bash
+# Set the allowed origin (Note: singular 'origin')
+incus config set core.https_allowed_origin "https://incus.ionsignal.com"
+
+# Set the allowed methods
+incus config set core.https_allowed_methods "GET, POST, PUT, DELETE, OPTIONS"
+
+# Allow credentials (required for some browser websocket implementations)
+incus config set core.https_allowed_credentials "true"
+```
+
+#### **5.4. Generate BasicAuth Password for the Web UI**
 
 Generate a `bcrypt` hashed password. This will be the password you type into the browser prompt to access the Incus dashboard.
 
@@ -734,14 +749,14 @@ caddy hash-password
 # Copy the resulting hash (e.g., $2a$14$...)
 ```
 
-#### **5.4. Update Caddyfile**
+#### **5.5. Update Caddyfile**
 
 Update `/etc/caddy/caddyfile` (see config file) and update the proxy block to implement the BasicAuth and mTLS bridge.
 
 Reload Caddy to apply the changes:
 
 ```bash
-sudo caddy fmt --overwrite /etc/caddy/Caddyfile
+sudo caddy fmt --overwrite /etc/caddy/caddyfile
 sudo systemctl reload caddy
 ```
 
@@ -953,6 +968,9 @@ incus exec minecraft -- cloud-init status --wait
 When a new base image (e.g., `papermc.yaml`) needs to be compiled or updated, execute the following pipeline from the bare-metal host. This pushes the definition into the clean room, compiles the cryptographic artifacts, and pulls them back to the host's local image registry.
 
 ```bash
+# Clear the workspace
+incus exec builder -- bash -c "rm -rf /workspace/*"
+
 # Push the declarative image definition into the builder's workspace
 incus file push ./configs/incus/images/papermc.yaml builder/workspace/
 
