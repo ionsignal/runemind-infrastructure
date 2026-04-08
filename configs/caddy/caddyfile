@@ -36,6 +36,7 @@
 		# Proxy to Incus and present the Client Certificate
 		reverse_proxy 10.10.10.1:8443 {
 			header_up Host {upstream_hostport}
+			header_up Origin https://{upstream_hostport}
 			transport http {
 				tls_insecure_skip_verify
 				tls_client_auth /etc/caddy/incus-certs/caddy.crt /etc/caddy/incus-certs/caddy.key
