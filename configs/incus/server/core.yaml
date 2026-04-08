@@ -1,2 +1,5 @@
 config:
   core.https_address: 10.10.10.1:8443
+  core.https_allowed_credentials: 'true'
+  core.https_allowed_methods: GET, POST, PUT, DELETE, OPTIONS
+  core.https_allowed_origin: https://incus.ionsignal.com
