@@ -20,6 +20,19 @@
 - **Defense-in-Depth Containerization:** No workloads run directly on the bare-metal host OS. Both the AI Inference Engine and Game Servers operate inside heavily restricted Incus containers.
 - **Micro-CA SSL:** Wildcard certificates (`*.ionsignal.com`/`*.runemind.com`) are generated securely via Caddy using the `acme-dns` plugin hosted on an isolated AWS ARM64 instance.
 
+#### The Paradigm: Who is the Source of Truth?
+
+To succeed long-term, we must strictly divide our "Truth" into three distinct pillars:
+
+1.  **Postgres = The Business Truth.**
+    - _What it knows:_ "User A owns an instance named `alpha-node`. They are allowed to use 4 CPUs. It is supposed to be a `papermc` app."
+    - _What it DOES NOT know:_ How big the disk is, what IP address it has, or what the volumes are named.
+2.  **The Blueprints (YAML) = The Genetic Code.**
+    - _What it knows:_ "If someone asks to build a `papermc` app, here are the instructions (volumes, files, ports) to assemble it."
+    - _What it DOES NOT know:_ Anything about existing servers. It is just a recipe book.
+3.  **Incus (ZFS) = The Infrastructure Truth (The Data Plane).**
+    - _What it knows:_ "I have a container named `alpha-node`. Attached to it are two ZFS datasets named `alpha-node-world` and `alpha-node-plugins`."
+
 ## Phase 1: Bare Metal Foundation & Hardening [COMPLETED]
 
 _Objective: Establish a secure host environment, enforce network boundaries, integrate the Micro-CA, and provision raw storage._
@@ -69,18 +82,20 @@ _To support heterogeneous workloads (Minecraft, ComfyUI, vLLM) we are adopting a
   - **[✓] The Configuration Registry (Boot-Time Loading):** Implemented `DefinitionRegistryService`. On boot, Fastify scans `configs/applications/*.yaml`, parsing and strictly validating them against Zod schemas into an in-memory cache. Malformed blueprints trigger a fail-fast boot halt to guarantee configuration integrity.
   - **[✓] The Hardware Ledger (Postgres SSoT):** Expanded the Drizzle `instances` table with `definition`, `cpu`, and `memory` columns. This strictly decouples hardware quotas from static application configurations, allowing seamless underlying infrastructure updates.
 
-- **[-] 3.2. Execution & CSI Orchestration**
-  _Refactor `InstanceService.create` into a generic state machine. It compiles the Incus payload by merging the Registry (Base Template) with the Ledger (Hardware Limits), completely removing hardcoded application logic from the backend._
-  - **[ ] The Compilation Engine (Merging State):** When provisioning begins, Fastify dynamically generates the Incus API payload. It injects Postgres Ledger limits (e.g., `{'limits.memory': db.memoryLimit}`) into the Blueprint's `instance_template.config`, safely overriding base profile defaults.
-  - **[ ] The Execution Pipeline (Incus API Saga):** Execute the compiled payload in a strict, orchestrated sequence:
-    1. **Pre-Flight Storage (CSI):** Iterate over `provisioning.volumes`. Execute ZFS CoW clones or create empty datasets. _Caveat: The engine must automatically prefix volume names (e.g., `<instanceName>-world`) to prevent tenant collisions and enforce `size` quotas._
+- **[✓] 3.2. Execution & CSI Orchestration**
+  _Refactored `InstanceService.create` into a generic state machine. It compiles the Incus payload by merging the Registry (Base Template) with the Ledger (Hardware Limits), completely removing hardcoded application logic from the backend._
+  - **[✓] The Compilation Engine (Merging State):** When provisioning begins, Fastify dynamically generates the Incus API payload. It injects Postgres Ledger limits (e.g., `limits.memory`) into the Blueprint's `instance_template.config`, safely overriding base profile defaults.
+  - **[✓] The Execution Pipeline (Incus API Saga):** Execute the compiled payload in a strict, orchestrated sequence:
+    1. **Pre-Flight Storage (CSI):** Iterate over `provisioning.volumes`. Execute ZFS CoW clones or create empty datasets, automatically prefixing volume names (e.g., `<instanceName>-world`) to prevent tenant collisions.
     2. **Device Mapping:** Dynamically attach the newly provisioned ZFS volumes to the Incus `devices` map using the Blueprint's `mount_path`.
     3. **Container Creation:** Send the composed payload to the Incus `/instances` API.
-    4. **Post-Flight File Injection:** Iterate over `provisioning.files`. Push files directly to the container disk via the Incus File API, enforcing `uid`/`gid` boundaries.
+    4. **Post-Flight File Injection:** Iterate over `provisioning.files`. Push interpolated files directly to the container disk via the Incus File API, enforcing `uid`/`gid` boundaries.
     5. **State Finalization:** Mark the instance as `offline` in Postgres and broadcast the NATS event.
-  - **[ ] Template Variable Transformation:** Implement a lightweight templating engine (e.g., Handlebars) for Post-Flight files. This allows translating Incus-formatted Ledger variables (e.g., `4GB`) into application-specific formats (e.g., `-Xms4G` for Java) defined in the Blueprint via `{{ limits.memory.java }}`.
-  - **[ ] Dynamic Rollback Stack:** Implement a generic Saga rollback mechanism. If any step in the Execution Pipeline fails, the engine pops the stack, systematically destroying the container and any dynamically generated ZFS volumes to prevent orphaned "zombie" resources on the host.
-  - **[ ] tRPC & UI Hardware Quota Integration:** Update the `instance.create` tRPC mutation (and eventually the Vue UI) to accept user-defined `cpu` and `memory` limits, passing them through to the execution pipeline rather than relying on backend defaults.
+  - **[✓] Template Variable Transformation:** Implemented context dictionaries and the `interpolate` utility to translate raw hardware limits into application-specific formats (e.g., `-Xms4G` for Java via `{{ limits.memory.java }}`).
+  - **[✓] Dynamic Rollback Stack:** Implemented a LIFO (Last-In, First-Out) Saga rollback mechanism. If any step fails, the engine pops the stack sequentially, destroying the container and dynamically generated ZFS volumes to prevent orphaned "zombie" resources on the host.
+  - **[✓] tRPC Hardware Quota Integration:** Updated the `instance.create` tRPC mutation to accept user-defined `cpu` and `memory` limits, passing them through to the execution pipeline.
+  - **[ ] UI Hardware Quota Integration:** Update the Vue UI to expose CPU/Memory sliders and inputs, passing user selections to the `trpc.host.instance.create` mutation.
+  - **[ ] Refactor Database Quota Types:** Change the `cpu` and `memory` columns in the Drizzle schema from `text` to `integer` to enforce stricter mathematical limits and validation logic.
   - **[ ] Micro-Engine Array Support:** Enhance the `interpolate` utility regex to safely parse and resolve array indices (e.g., `{{ network.ports[0] }}`) to support more complex blueprint variables.
   - **[ ] Build Configuration Cleanup:** Externalize the `yaml` dependency in `packages/ionhost/vite.config.ts` to prevent it from being bundled directly into the server distribution.
 
