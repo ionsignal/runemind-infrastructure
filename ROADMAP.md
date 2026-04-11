@@ -106,6 +106,41 @@ _To support heterogeneous workloads (Minecraft, ComfyUI, vLLM) we are adopting a
   - **[ ] Raw Editor Fallback:** For unstructured files or complex configurations lacking a Zod schema, provide a raw Monaco (VSCode) text editor in the browser to allow admins to edit the disk string directly (preserving manual `# comments`).
   - **[ ] Schema-Driven Forms:** Build a recursive `<SchemaRenderer>` Vue component that iterates over the Zod object provided by the backend, automatically mapping types to Naive UI inputs based on the target file defined in the Blueprint.
 
+### **Phase 4: Front-End Architecture & tRPC v11 Modernization**
+
+_Objective: Conduct a deep architectural audit of the Vue 3 / Vike integration, migrating to tRPC v11 native SSR/WebSocket patterns, hardening SPA navigation, and optimizing our Pinia-free "Merge & Reconcile" composable design. We are intentionally diverging from generic meta-framework defaults to strictly support Naive UI and our NATS-backed tRPC WebSocket layer._
+
+#### **Architectural Constraints & Notes**
+
+- **Disabled HTML Streaming (`enableEagerStreaming: false`):** We must permanently disable eager HTML streaming in `renderer/+onRenderHtml.ts`. Naive UI utilizes `@css-render/vue3-ssr` to dynamically generate CSS based on the exact components rendered during the SSR pass. Streaming the HTML before the render completes causes a critical Flash of Unstyled Content (FOUC).
+- **`<ClientOnly>` Component Strategy:** We are retaining our standard Vue `v-if="isMounted"` implementation for hydration safety. To prevent Node.js server-bundle bloat and SSR crashes, we must strictly enforce the use of `defineAsyncComponent` / dynamic imports for heavy browser-only libraries (e.g., `skinview3d`) inside these blocks.
+- **Native SSR Links (`unstable_localLink`):** We are deprecating custom recursive proxies in favor of tRPC v11's `unstable_localLink`. This ensures `superjson` transformers run correctly on the server, preventing serialization bugs (e.g., `Date` objects becoming strings during Vike's HTML injection).
+
+#### **Actionable Audit Items**
+
+- **[x] 4.1. SSR Boundary & tRPC v11 Modernization**
+  _Eliminate serialization bugs and unify the data-fetching API._
+  - **[x]** Refactor `renderer/api/trpc.ts` to utilize `unstable_localLink` for server-side execution, bypassing HTTP overhead while preserving `superjson` transformations.
+  - **[x]** Refactor `composables/useTRPC.ts` to return the standard, isomorphic `trpc` client, removing the legacy `createRecursiveProxy` hack.
+  - **[x]** Clean up all `+data.ts` files to use the unified `trpc` client, removing `if ('trpcCaller' in pageContext)` boilerplate.
+
+- **[ ] 4.2. Advanced WebSocket Management & Resilience**
+  _Prevent resource exhaustion on the Fastify server and handle network blips._
+  - **[x]** Configure `lazy: { enabled: true, closeMs: 5000 }` in the tRPC WebSocket client so connections are only active when a component (like the Dashboard) is mounted.
+  - **[x]** Enable `keepAlive: { enabled: true }` to prevent reverse proxies (e.g., Nginx/Cloudflare) from dropping idle NATS-backed WS connections.
+  - **[ ]** (Future) Implement `tracked(id, data)` in the Fastify `subscriptionRouter` to allow the client to seamlessly recover missed NATS events after a brief disconnect.
+
+- **[ ] 4.3. Composable Design & State Management Refinement**
+  _Optimize our Pinia-free localized state architecture._
+  - **[ ]** **Fix SPA Navigation Stale State:** Add `watch(() => options.initialData, ...)` inside `usePersonas` and `useSkins` to ensure Vike's client-side routing properly hydrates the local refs when navigating back and forth.
+  - **[ ]** **Optimize NATS Event Handling:** Refactor `usePersonas` to mutate the `personas.value` array in-place upon receiving an `AGENT_STATE` event from the Java Engine. This eliminates unnecessary HTTP `refresh()` queries to the Postgres database.
+
+- **[ ] 4.4. UI Component Library & Type Syncing**
+  _Clean up the codebase and ensure strict type alignment._
+  - **[x]** Replace manual `isTRPCClientError` type guards in Vue components with the native `isTRPCClientError` exported from `@trpc/client`.
+  - **[ ]** Audit prop drilling in `DashboardView.vue` and `PersonaCard.vue`.
+  - **[ ]** Verify that types inferred from the tRPC router (e.g., `PersonaListItem`) are correctly synced and exported from the `ioncontrol` package to prevent TS drift.
+
 ## Deferred / Backlog
 
 _Objective: Polish, edge-case hardware management, alternative workload support, and advanced user-facing features._
