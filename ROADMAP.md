@@ -128,7 +128,6 @@ _Objective: Conduct a deep architectural audit of the Vue 3 / Vike integration, 
   _Prevent resource exhaustion on the Fastify server and handle network blips._
   - **[x]** Configure `lazy: { enabled: true, closeMs: 5000 }` in the tRPC WebSocket client so connections are only active when a component (like the Dashboard) is mounted.
   - **[x]** Enable `keepAlive: { enabled: true }` to prevent reverse proxies (e.g., Nginx/Cloudflare) from dropping idle NATS-backed WS connections.
-  - **[ ]** (Future) Implement `tracked(id, data)` in the Fastify `subscriptionRouter` to allow the client to seamlessly recover missed NATS events after a brief disconnect.
 
 - **[ ] 4.3. Composable Design & State Management Refinement**
   _Optimize our Pinia-free localized state architecture._
@@ -140,6 +139,12 @@ _Objective: Conduct a deep architectural audit of the Vue 3 / Vike integration, 
   - **[x]** Replace manual `isTRPCClientError` type guards in Vue components with the native `isTRPCClientError` exported from `@trpc/client`.
   - **[ ]** Audit prop drilling in `DashboardView.vue` and `PersonaCard.vue`.
   - **[ ]** Verify that types inferred from the tRPC router (e.g., `PersonaListItem`) are correctly synced and exported from the `ioncontrol` package to prevent TS drift.
+
+- **[ ] 4.5. SSR-Native Layout & Theme Variable Propagation**
+  _Eliminate JS-driven layout shifts (CLS) and audit Naive UI theme consistency across the SSR boundary._
+  - **[x]** **Remove `<ClientOnly>` Anti-Patterns:** Stripped `<ClientOnly>` wrappers from `DashboardView.vue` and `PersonaEditorView.vue` to restore full SSR data utilization and improve First Contentful Paint (FCP).
+  - **[x]** **CSS-Native Macro Layouts:** Replaced Naive UI's JS-dependent `<n-grid responsive="screen">` and horizontal `<n-menu>` with pure CSS Grid (`auto-fill`) and Flexbox. This completely eliminates Cumulative Layout Shift (CLS) and the need for opacity hacks during the Node.js SSR pass.
+  - **[ ]** **Investigate Theme Variable Propagation:** Audit how `n-config-provider` and `@css-render/vue3-ssr` inject CSS variables (`var(--n-...)`) into the initial HTML payload. Ensure our custom CSS classes reliably inherit these variables without causing hydration mismatches or Flashes of Unstyled Content (FOUC), particularly when evaluating Dark/Light mode hydration.
 
 ## Deferred / Backlog
 
