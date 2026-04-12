@@ -118,33 +118,29 @@ _Objective: Conduct a deep architectural audit of the Vue 3 / Vike integration, 
 
 #### **Actionable Audit Items**
 
-- **[x] 4.1. SSR Boundary & tRPC v11 Modernization**
+- **[✓] 4.1. SSR Boundary & tRPC v11 Modernization**
   _Eliminate serialization bugs and unify the data-fetching API._
-  - **[x]** Refactor `renderer/api/trpc.ts` to utilize `unstable_localLink` for server-side execution, bypassing HTTP overhead while preserving `superjson` transformations.
-  - **[x]** Refactor `composables/useTRPC.ts` to return the standard, isomorphic `trpc` client, removing the legacy `createRecursiveProxy` hack.
-  - **[x]** Clean up all `+data.ts` files to use the unified `trpc` client, removing `if ('trpcCaller' in pageContext)` boilerplate.
+  - **[✓]** Refactor `renderer/api/trpc.ts` to utilize `unstable_localLink` for server-side execution, bypassing HTTP overhead while preserving `superjson` transformations.
+  - **[✓]** Refactor `composables/useTRPC.ts` to return the standard, isomorphic `trpc` client, removing the legacy `createRecursiveProxy` hack.
+  - **[✓]** Clean up all `+data.ts` files to use the unified `trpc` client, removing `if ('trpcCaller' in pageContext)` boilerplate.
 
-- **[ ] 4.2. Advanced WebSocket Management & Resilience**
+- **[✓] 4.2. Advanced WebSocket Management & Resilience**
   _Prevent resource exhaustion on the Fastify server and handle network blips._
-  - **[x]** Configure `lazy: { enabled: true, closeMs: 5000 }` in the tRPC WebSocket client so connections are only active when a component (like the Dashboard) is mounted.
-  - **[x]** Enable `keepAlive: { enabled: true }` to prevent reverse proxies (e.g., Nginx/Cloudflare) from dropping idle NATS-backed WS connections.
+  - **[✓]** Configure `lazy: { enabled: true, closeMs: 5000 }` in the tRPC WebSocket client so connections are only active when a component (like the Dashboard) is mounted.
+  - **[✓]** Enable `keepAlive: { enabled: true }` to prevent reverse proxies (e.g., Nginx/Cloudflare) from dropping idle NATS-backed WS connections.
 
-- **[ ] 4.3. Composable Design & State Management Refinement**
-  _Optimize our Pinia-free localized state architecture._
-  - **[ ]** **Fix SPA Navigation Stale State:** Add `watch(() => options.initialData, ...)` inside `usePersonas` and `useSkins` to ensure Vike's client-side routing properly hydrates the local refs when navigating back and forth.
-  - **[ ]** **Optimize NATS Event Handling:** Refactor `usePersonas` to mutate the `personas.value` array in-place upon receiving an `AGENT_STATE` event from the Java Engine. This eliminates unnecessary HTTP `refresh()` queries to the Postgres database.
+- **[✓] 4.3. The "Reactive Sync Pattern" & Smart Controllers**
+  _Optimize our Pinia-free localized state architecture by eliminating the "Zombie Composable" and "Database Hammer" anti-patterns._
+  - **[✓]** **Vike SPA Syncing:** Implement the Reactive Sync Pattern in `+Page.vue` files by wrapping Vike's shallow SSR data in a deep `ref()` and syncing it via a shallow `watch`. This live pointer (`Ref<T>`) survives Vike's client-side routing replacements while enabling deep reactivity.
+  - **[✓]** **Optimistic UI Mutations:** Refactor `usePersonas` and `useSkins` from "state holders" into "smart controllers." Actions (`spawn`, `despawn`, `upload`, `remove`) now instantly mutate the deep ref in memory, providing immediate visual feedback and automatically reverting state if the tRPC mutation fails.
+  - **[✓]** **Internal Notification Bridge:** Expanded the NATS `IonEventBroker` to support an internal `notify()` egress. This allows background workers (e.g., the Skin Signer) to securely broadcast state changes to the Fastify dispatcher.
+  - **[✓]** **In-Place NATS Sync:** Intercept `AGENT_STATE` and `SKIN_UPDATE` WebSocket events inside the controllers to mutate entity properties directly in memory. This permanently eliminates the need to trigger expensive HTTP `refresh()` queries to the Postgres database upon receiving real-time push events.
 
 - **[ ] 4.4. UI Component Library & Type Syncing**
   _Clean up the codebase and ensure strict type alignment._
-  - **[x]** Replace manual `isTRPCClientError` type guards in Vue components with the native `isTRPCClientError` exported from `@trpc/client`.
+  - **[✓]** Replace manual `isTRPCClientError` type guards in Vue components with the native `isTRPCClientError` exported from `@trpc/client`.
   - **[ ]** Audit prop drilling in `DashboardView.vue` and `PersonaCard.vue`.
-  - **[ ]** Verify that types inferred from the tRPC router (e.g., `PersonaListItem`) are correctly synced and exported from the `ioncontrol` package to prevent TS drift.
-
-- **[ ] 4.5. SSR-Native Layout & Theme Variable Propagation**
-  _Eliminate JS-driven layout shifts (CLS) and audit Naive UI theme consistency across the SSR boundary._
-  - **[x]** **Remove `<ClientOnly>` Anti-Patterns:** Stripped `<ClientOnly>` wrappers from `DashboardView.vue` and `PersonaEditorView.vue` to restore full SSR data utilization and improve First Contentful Paint (FCP).
-  - **[x]** **CSS-Native Macro Layouts:** Replaced Naive UI's JS-dependent `<n-grid responsive="screen">` and horizontal `<n-menu>` with pure CSS Grid (`auto-fill`) and Flexbox. This completely eliminates Cumulative Layout Shift (CLS) and the need for opacity hacks during the Node.js SSR pass.
-  - **[ ]** **Investigate Theme Variable Propagation:** Audit how `n-config-provider` and `@css-render/vue3-ssr` inject CSS variables (`var(--n-...)`) into the initial HTML payload. Ensure our custom CSS classes reliably inherit these variables without causing hydration mismatches or Flashes of Unstyled Content (FOUC), particularly when evaluating Dark/Light mode hydration.
+  - **[✓]** Verify that types inferred from the tRPC router (e.g., `PersonaListItem`) and the updated composable options (`UsePersonasOptions`, `UseSkinsOptions`) are correctly synced and exported from the `ioncontrol` package to prevent TS drift.
 
 ## Deferred / Backlog
 
