@@ -106,41 +106,21 @@ _To support heterogeneous workloads (Minecraft, ComfyUI, vLLM) we are adopting a
   - **[ ] Raw Editor Fallback:** For unstructured files or complex configurations lacking a Zod schema, provide a raw Monaco (VSCode) text editor in the browser to allow admins to edit the disk string directly (preserving manual `# comments`).
   - **[ ] Schema-Driven Forms:** Build a recursive `<SchemaRenderer>` Vue component that iterates over the Zod object provided by the backend, automatically mapping types to Naive UI inputs based on the target file defined in the Blueprint.
 
-### **Phase 4: Front-End Architecture & tRPC v11 Modernization**
+### **Phase 4: Front-End Architecture & tRPC Integration**
 
-_Objective: Conduct a deep architectural audit of the Vue 3 / Vike integration, migrating to tRPC v11 native SSR/WebSocket patterns, hardening SPA navigation, and optimizing our Pinia-free "Merge & Reconcile" composable design. We are intentionally diverging from generic meta-framework defaults to strictly support Naive UI and our NATS-backed tRPC WebSocket layer._
+_Objective: Build highly reactive, Pinia-free, strictly-typed Vue 3 interfaces powered by NATS-backed tRPC WebSockets. Our architecture intentionally diverges from generic meta-framework defaults to strictly support Naive UI, Vike SPA routing, and real-time state reconciliation._
 
-#### **Architectural Constraints & Notes**
+#### **Core Architectural Patterns & Constraints**
 
-- **Disabled HTML Streaming (`enableEagerStreaming: false`):** We must permanently disable eager HTML streaming in `renderer/+onRenderHtml.ts`. Naive UI utilizes `@css-render/vue3-ssr` to dynamically generate CSS based on the exact components rendered during the SSR pass. Streaming the HTML before the render completes causes a critical Flash of Unstyled Content (FOUC).
-- **`<ClientOnly>` Component Strategy:** We are retaining our standard Vue `v-if="isMounted"` implementation for hydration safety. To prevent Node.js server-bundle bloat and SSR crashes, we must strictly enforce the use of `defineAsyncComponent` / dynamic imports for heavy browser-only libraries (e.g., `skinview3d`) inside these blocks.
-- **Native SSR Links (`unstable_localLink`):** We are deprecating custom recursive proxies in favor of tRPC v11's `unstable_localLink`. This ensures `superjson` transformers run correctly on the server, preventing serialization bugs (e.g., `Date` objects becoming strings during Vike's HTML injection).
+As we build out new pages and components, we must strictly adhere to the following rules:
 
-#### **Actionable Audit Items**
+- **1. The Reactive Sync Pattern (SPA Routing):** Vike replaces `pageContext.data` during client-side navigation. To maintain deep reactivity without a global store, always wrap `useData()` in a local `ref()` inside `+Page.vue`, and sync it using a shallow watcher:
+- **2. Smart Composables & In-Place Mutations:** Pass the synced `ref` down into domain composables (e.g., `usePersonas`). When real-time tRPC WebSocket events arrive, mutate the `ref` _in-place_ (e.g., `target.status = rawEvent.status`). **Never** trigger expensive HTTP `refresh()` queries to the database upon receiving a push event.
+- **3. Strict E2E Type Inference:** Never manually duplicate backend Zod schemas in the frontend. All component props and emits must rely on strict inference from the tRPC router to prevent "over-sharing" data payloads:
+- **4. CSS SSR Collection:** Eager HTML streaming must remain permanently disabled (`enableEagerStreaming: false` in `+onRenderHtml.ts`). Naive UI requires the complete Vue component tree to finish rendering so `@css-render/vue3-ssr` can accurately collect and inject the required CSS before the browser paints, preventing Flash of Unstyled Content (FOUC).
 
-- **[✓] 4.1. SSR Boundary & tRPC v11 Modernization**
-  _Eliminate serialization bugs and unify the data-fetching API._
-  - **[✓]** Refactor `renderer/api/trpc.ts` to utilize `unstable_localLink` for server-side execution, bypassing HTTP overhead while preserving `superjson` transformations.
-  - **[✓]** Refactor `composables/useTRPC.ts` to return the standard, isomorphic `trpc` client, removing the legacy `createRecursiveProxy` hack.
-  - **[✓]** Clean up all `+data.ts` files to use the unified `trpc` client, removing `if ('trpcCaller' in pageContext)` boilerplate.
-
-- **[✓] 4.2. Advanced WebSocket Management & Resilience**
-  _Prevent resource exhaustion on the Fastify server and handle network blips._
-  - **[✓]** Configure `lazy: { enabled: true, closeMs: 5000 }` in the tRPC WebSocket client so connections are only active when a component (like the Dashboard) is mounted.
-  - **[✓]** Enable `keepAlive: { enabled: true }` to prevent reverse proxies (e.g., Nginx/Cloudflare) from dropping idle NATS-backed WS connections.
-
-- **[✓] 4.3. The "Reactive Sync Pattern" & Smart Controllers**
-  _Optimize our Pinia-free localized state architecture by eliminating the "Zombie Composable" and "Database Hammer" anti-patterns._
-  - **[✓]** **Vike SPA Syncing:** Implement the Reactive Sync Pattern in `+Page.vue` files by wrapping Vike's shallow SSR data in a deep `ref()` and syncing it via a shallow `watch`. This live pointer (`Ref<T>`) survives Vike's client-side routing replacements while enabling deep reactivity.
-  - **[✓]** **Optimistic UI Mutations:** Refactor `usePersonas` and `useSkins` from "state holders" into "smart controllers." Actions (`spawn`, `despawn`, `upload`, `remove`) now instantly mutate the deep ref in memory, providing immediate visual feedback and automatically reverting state if the tRPC mutation fails.
-  - **[✓]** **Internal Notification Bridge:** Expanded the NATS `IonEventBroker` to support an internal `notify()` egress. This allows background workers (e.g., the Skin Signer) to securely broadcast state changes to the Fastify dispatcher.
-  - **[✓]** **In-Place NATS Sync:** Intercept `AGENT_STATE` and `SKIN_UPDATE` WebSocket events inside the controllers to mutate entity properties directly in memory. This permanently eliminates the need to trigger expensive HTTP `refresh()` queries to the Postgres database upon receiving real-time push events.
-
-- **[ ] 4.4. UI Component Library & Type Syncing**
-  _Clean up the codebase and ensure strict type alignment._
-  - **[✓]** Replace manual `isTRPCClientError` type guards in Vue components with the native `isTRPCClientError` exported from `@trpc/client`.
-  - **[ ]** Audit prop drilling in `DashboardView.vue` and `PersonaCard.vue`.
-  - **[✓]** Verify that types inferred from the tRPC router (e.g., `PersonaListItem`) and the updated composable options (`UsePersonasOptions`, `UseSkinsOptions`) are correctly synced and exported from the `ioncontrol` package to prevent TS drift.
+- **[✓] 4.1. [?]**
+  _What Should We Work on Next?_
 
 ## Deferred / Backlog
 
