@@ -119,6 +119,16 @@ As we build out new pages and components, we must strictly adhere to the followi
 - **3. Strict E2E Type Inference:** Never manually duplicate backend Zod schemas in the frontend. All component props and emits must rely on strict inference from the tRPC router to prevent "over-sharing" data payloads.
 - **4. CSS SSR Collection:** Eager HTML streaming must remain permanently disabled (`enableEagerStreaming: false` in `+onRenderHtml.ts`). Naive UI requires the complete Vue component tree to finish rendering so `@css-render/vue3-ssr` can accurately collect and inject the required CSS before the browser paints, preventing Flash of Unstyled Content (FOUC).
 - **5. Context Injection & Package Boundaries:** To avoid prop drilling, use Vue's native `provide`/`inject` for passing shared state or composable actions down the component tree. However, **never** import host-specific composables (e.g., `usePageContext`) into isolated monorepo packages (`@ionsignal/*`). Instead, resolve the context at the host boundary (e.g., `+Page.vue` or a top-level package view) and `provide` it downward using strictly typed `InjectionKey`s.
+- **6. Monorepo DX & Build Isolation:** Frontend HMR and Backend restarts are strictly decoupled.
+  - **Frontend:** Host `vite.config.ts` uses aliases (`@ionsignal/*/client` -> `src/client.ts`) to process package `.vue` files directly, guaranteeing instant HMR.
+  - **Backend:** Package watchers (`vite build --watch --mode development`) only compile `src/server.ts`.
+  - **Restarts:** A custom Vite plugin (`sentinel.ts`) hashes the compiled `server.js` output and only restarts Fastify (via Nodemon) if the executable backend logic fundamentally changes.
+- **7. CSS Virtual Modules:** To prevent duplicate CSS injection during development, explicit package CSS imports (e.g., `import '@ionsignal/.../style.css'`) are intercepted by a Vite virtual module in the root config and served as empty strings. Vite relies entirely on the live `.vue` file CSS injection for HMR.
+
+### Current Tasks
+
+- **[✓] 4.0. Decouple Monorepo HMR & Server Restarts**
+  _Implemented Smart Sentinel hash-checking, Vite development aliases, and CSS virtual modules to restore instant Vue HMR and prevent unnecessary Fastify reboots._
 
 - **[✓] 4.1. Audit & Refactor Dashboard Data Flow**
   _Removed prop-drilling code smells and enforced package boundary safety using Vue's provide/inject API._
