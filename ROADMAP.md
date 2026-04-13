@@ -114,13 +114,20 @@ _Objective: Build highly reactive, Pinia-free, strictly-typed Vue 3 interfaces p
 
 As we build out new pages and components, we must strictly adhere to the following rules:
 
-- **1. The Reactive Sync Pattern (SPA Routing):** Vike replaces `pageContext.data` during client-side navigation. To maintain deep reactivity without a global store, always wrap `useData()` in a local `ref()` inside `+Page.vue`, and sync it using a shallow watcher:
+- **1. The Reactive Sync Pattern (SPA Routing):** Vike replaces `pageContext.data` during client-side navigation. To maintain deep reactivity without a global store, always wrap `useData()` in a local `ref()` inside `+Page.vue`, and sync it using a shallow watcher.
 - **2. Smart Composables & In-Place Mutations:** Pass the synced `ref` down into domain composables (e.g., `usePersonas`). When real-time tRPC WebSocket events arrive, mutate the `ref` _in-place_ (e.g., `target.status = rawEvent.status`). **Never** trigger expensive HTTP `refresh()` queries to the database upon receiving a push event.
-- **3. Strict E2E Type Inference:** Never manually duplicate backend Zod schemas in the frontend. All component props and emits must rely on strict inference from the tRPC router to prevent "over-sharing" data payloads:
+- **3. Strict E2E Type Inference:** Never manually duplicate backend Zod schemas in the frontend. All component props and emits must rely on strict inference from the tRPC router to prevent "over-sharing" data payloads.
 - **4. CSS SSR Collection:** Eager HTML streaming must remain permanently disabled (`enableEagerStreaming: false` in `+onRenderHtml.ts`). Naive UI requires the complete Vue component tree to finish rendering so `@css-render/vue3-ssr` can accurately collect and inject the required CSS before the browser paints, preventing Flash of Unstyled Content (FOUC).
+- **5. Context Injection & Package Boundaries:** To avoid prop drilling, use Vue's native `provide`/`inject` for passing shared state or composable actions down the component tree. However, **never** import host-specific composables (e.g., `usePageContext`) into isolated monorepo packages (`@ionsignal/*`). Instead, resolve the context at the host boundary (e.g., `+Page.vue` or a top-level package view) and `provide` it downward using strictly typed `InjectionKey`s.
 
-- **[✓] 4.1. [?]**
-  _What Should We Work on Next?_
+- **[✓] 4.1. Audit & Refactor Dashboard Data Flow**
+  _Removed prop-drilling code smells and enforced package boundary safety using Vue's provide/inject API._
+
+- **[ ] 4.2. Eradicate Manual Interface Duplication**
+  _Refactor `DashboardView.vue` to replace manual `interface User` and `interface AccountStatus` definitions with strict tRPC router inference and shared `@/types/entities.d.ts`._
+
+- **[ ] 4.3. Simplify UI State Machines (PersonaCard)**
+  _Refactor "God Components" like `PersonaCard.vue` by replacing overlapping boolean flags (`showDespawnConfirm`, `showDeleteConfirm`) with strict union state machines (`actionState: 'idle' | 'confirm-delete' | ...`) and extracting the action bars into dedicated molecule components._
 
 ## Deferred / Backlog
 
