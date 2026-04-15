@@ -106,38 +106,49 @@ _To support heterogeneous workloads (Minecraft, ComfyUI, vLLM) we are adopting a
   - **[ ] Raw Editor Fallback:** For unstructured files or complex configurations lacking a Zod schema, provide a raw Monaco (VSCode) text editor in the browser to allow admins to edit the disk string directly (preserving manual `# comments`).
   - **[ ] Schema-Driven Forms:** Build a recursive `<SchemaRenderer>` Vue component that iterates over the Zod object provided by the backend, automatically mapping types to Naive UI inputs based on the target file defined in the Blueprint.
 
-### **Phase 4: Front-End Architecture & tRPC Integration**
+### Phase 4: Front-End Architecture & tRPC Integration
 
-_Objective: Build highly reactive, Pinia-free, strictly-typed Vue 3 interfaces powered by NATS-backed tRPC WebSockets. Our architecture intentionally diverges from generic meta-framework defaults to strictly support Naive UI, Vike SPA routing, and real-time state reconciliation._
+**Core Architectural Rules & Constraints:**
 
-#### **Core Architectural Patterns & Constraints**
+1. **Zero Type Duplication:** Never manually define TypeScript interfaces that mirror backend responses or payloads. All frontend types MUST be derived directly from the backend router using `@trpc/server`'s `inferRouterOutputs` and `inferRouterInputs`.
+2. **Context Over Prop-Drilling:** For nested component trees (depth > 1), strictly avoid passing mutation functions or loading states via props and emits. Encapsulate domain logic in a composable that utilizes Vue's `provide/inject` pattern (e.g., `providePersonas` and `usePersonaContext`).
+3. **Pure Layouts & Smart Cards:** Layout components (e.g., `DashboardView.vue`) must remain purely presentational, handling only the rendering of grids/lists. Individual item components (e.g., `PersonaCard.vue`) must inject their own context and handle their own actions.
+4. **Localized UI State Machines:** Avoid global or top-down `loading` Maps. Individual components must manage their own interaction states (e.g., `const uiState = ref<'idle' | 'processing' | 'confirm-delete'>('idle')`).
+5. **Pessimistic Destructive Actions:** Do not use optimistic array mutations (e.g., `splice`) for destructive actions like deleting. Set the local component state to `processing`, `await` the backend mutation, and only filter the reactive array upon a successful response.
+6. **Host-Agnostic Packages:** Internal packages (like `ioncontrol`) must never directly import `@server` or hardcode host-specific implementations (like the WebSocket stream path). Inject these dependencies via abstract callbacks (e.g., `onEventStream`).
 
-As we build out new pages and components, we must strictly adhere to the following rules:
+#### Task 4.1: End-to-End Type Safety & Router Inference
 
-- **1. The Reactive Sync Pattern (SPA Routing):** Vike replaces `pageContext.data` during client-side navigation. To maintain deep reactivity without a global store, always wrap `useData()` in a local `ref()` inside `+Page.vue`, and sync it using a shallow watcher.
-- **2. Smart Composables & In-Place Mutations:** Pass the synced `ref` down into domain composables (e.g., `usePersonas`). When real-time tRPC WebSocket events arrive, mutate the `ref` _in-place_ (e.g., `target.status = rawEvent.status`). **Never** trigger expensive HTTP `refresh()` queries to the database upon receiving a push event.
-- **3. Strict E2E Type Inference:** Never manually duplicate backend Zod schemas in the frontend. All component props and emits must rely on strict inference from the tRPC router to prevent "over-sharing" data payloads.
-- **4. CSS SSR Collection:** Eager HTML streaming must remain permanently disabled (`enableEagerStreaming: false` in `+onRenderHtml.ts`). Naive UI requires the complete Vue component tree to finish rendering so `@css-render/vue3-ssr` can accurately collect and inject the required CSS before the browser paints, preventing Flash of Unstyled Content (FOUC).
-- **5. Context Injection & Package Boundaries:** To avoid prop drilling, use Vue's native `provide`/`inject` for passing shared state or composable actions down the component tree. However, **never** import host-specific composables (e.g., `usePageContext`) into isolated monorepo packages (`@ionsignal/*`). Instead, resolve the context at the host boundary (e.g., `+Page.vue` or a top-level package view) and `provide` it downward using strictly typed `InjectionKey`s.
-- **6. Monorepo DX & Build Isolation:** Frontend HMR and Backend restarts are strictly decoupled.
-  - **Frontend:** Host `vite.config.ts` uses aliases (`@ionsignal/*/client` -> `src/client.ts`) to process package `.vue` files directly, guaranteeing instant HMR.
-  - **Backend:** Package watchers (`vite build --watch --mode development`) only compile `src/server.ts`.
-  - **Restarts:** A custom Vite plugin (`sentinel.ts`) hashes the compiled `server.js` output and only restarts Fastify (via Nodemon) if the executable backend logic fundamentally changes.
-- **7. CSS Virtual Modules:** To prevent duplicate CSS injection during development, explicit package CSS imports (e.g., `import '@ionsignal/.../style.css'`) are intercepted by a Vite virtual module in the root config and served as empty strings. Vite relies entirely on the live `.vue` file CSS injection for HMR.
+- [✓] Establish centralized `types.ts` in the client package using `inferRouterOutputs`.
+- [✓] Replace manual `IonClientContract` with strictly inferred `TRPCClient<IonRouter>['persona']`.
+- [✓] Ensure `AccountStatus` and `PersonaListItem` dynamically inherit backend schema changes.
 
-### Current Tasks
+#### Task 4.2: Context Boundaries & Dependency Inversion
 
-- **[✓] 4.0. Decouple Monorepo HMR & Server Restarts**
-  _Implemented Smart Sentinel hash-checking, Vite development aliases, and CSS virtual modules to restore instant Vue HMR and prevent unnecessary Fastify reboots._
+- [✓] Refactor `usePersonas.ts` into a Context Provider (`providePersonas`).
+- [✓] Implement a fail-fast Context Injector (`usePersonaContext`) to satisfy strict null checks.
+- [✓] Abstract the host's tRPC WebSocket stream by injecting an `onEventStream` callback into the provider options.
+- [✓] Update `+Page.vue` to act as a clean data orchestrator, dropping top-down loading maps.
 
-- **[✓] 4.1. Audit & Refactor Dashboard Data Flow**
-  _Removed prop-drilling code smells and enforced package boundary safety using Vue's provide/inject API._
+#### Task 4.3: Pure Layouts & Smart Components
 
-- **[ ] 4.2. Eradicate Manual Interface Duplication**
-  _Refactor `DashboardView.vue` to replace manual `interface User` and `interface AccountStatus` definitions with strict tRPC router inference and shared `@/types/entities.d.ts`._
+- [✓] Strip action props and emit-chaining from `DashboardView.vue`, reducing it to a pure layout grid.
+- [✓] Empower `PersonaCard.vue` to inject `usePersonaContext` directly.
+- [✓] Implement a local `uiState` state machine in `PersonaCard.vue` to handle loading spinners and inline delete confirmations.
+- [✓] Refactor the `remove` function to pessimistically await backend confirmation before updating the reactive array.
 
-- **[ ] 4.3. Simplify UI State Machines (PersonaCard)**
-  _Refactor "God Components" like `PersonaCard.vue` by replacing overlapping boolean flags (`showDespawnConfirm`, `showDeleteConfirm`) with strict union state machines (`actionState: 'idle' | 'confirm-delete' | ...`) and extracting the action bars into dedicated molecule components._
+#### Task 4.4: Persona Creation & Skin Management UI (Pending)
+
+- [ ] Build the "Create Persona" modal/form, utilizing inferred input schemas for validation.
+- [ ] Implement a Skin Upload component that interfaces with `trpc.ion.skin.upload`.
+- [ ] Integrate the skin selection into the Persona Creation/Editing flow.
+- [ ] Ensure skin compilation status events (`SKIN_UPDATE`) are caught by the event stream and reactively update the UI (e.g., transitioning a skin from "Pending" to "Active").
+
+#### Task 4.5: Advanced Persona Management (Pending)
+
+- [ ] Implement a "Rename Persona" feature, utilizing `usePersonaContext` for the mutation.
+- [ ] Add visual indicators for Agent Location (e.g., displaying coordinates or "Offline" status based on the `AGENT_STATE` event payload).
+- [ ] Implement global error boundary handling for catastrophic tRPC failures.
 
 ## Deferred / Backlog
 
