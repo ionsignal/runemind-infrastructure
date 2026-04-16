@@ -113,7 +113,7 @@ _To support heterogeneous workloads (Minecraft, ComfyUI, vLLM) we are adopting a
 1. **Zero Type Duplication:** Never manually define TypeScript interfaces that mirror backend responses or payloads. All frontend types MUST be derived directly from the backend router using `@trpc/server`'s `inferRouterOutputs` and `inferRouterInputs`.
 2. **Context Over Prop-Drilling:** For nested component trees (depth > 1), strictly avoid passing mutation functions or loading states via props and emits. Encapsulate domain logic in a composable that utilizes Vue's `provide/inject` pattern (e.g., `providePersonas` and `usePersonaContext`).
 3. **Pure Layouts & Smart Cards:** Layout components (e.g., `DashboardView.vue`) must remain purely presentational, handling only the rendering of grids/lists. Individual item components (e.g., `PersonaCard.vue`) must inject their own context and handle their own actions.
-4. **Localized UI State Machines:** Avoid global or top-down `loading` Maps. Individual components must manage their own interaction states (e.g., `const uiState = ref<'idle' | 'processing' | 'confirm-delete'>('idle')`).
+4. **Localized UI State Machines & Discriminated Unions:** Avoid global or top-down `loading` Maps. Individual components must manage their own interaction states. Use strict discriminated unions (e.g., `VirtualPersona` vs `PersonaListItem`) to safely gate UI behavior for in-memory vs. database-backed entities without type casting.
 5. **Pessimistic Destructive Actions:** Do not use optimistic array mutations (e.g., `splice`) for destructive actions like deleting. Set the local component state to `processing`, `await` the backend mutation, and only filter the reactive array upon a successful response.
 6. **Host-Agnostic Packages:** Internal packages (like `ioncontrol`) must never directly import `@server` or hardcode host-specific implementations (like the WebSocket stream path). Inject these dependencies via abstract callbacks (e.g., `onEventStream`).
 
@@ -130,23 +130,31 @@ _To support heterogeneous workloads (Minecraft, ComfyUI, vLLM) we are adopting a
 - [✓] Abstract the host's tRPC WebSocket stream by injecting an `onEventStream` callback into the provider options.
 - [✓] Update `+Page.vue` to act as a clean data orchestrator, dropping top-down loading maps.
 
-#### Task 4.3: Pure Layouts & Smart Components
+#### Task 4.3: Slot-Based Grid & Multi-State Cards
 
-- [✓] Strip action props and emit-chaining from `DashboardView.vue`, reducing it to a pure layout grid.
-- [✓] Empower `PersonaCard.vue` to inject `usePersonaContext` directly.
-- [✓] Implement a local `uiState` state machine in `PersonaCard.vue` to handle loading spinners and inline delete confirmations.
-- [✓] Refactor the `remove` function to pessimistically await backend confirmation before updating the reactive array.
+- [✓] Introduce strict `slot` indexing to the database (`personaDefinitions`) with composite unique constraints `(ownerId, slot)`.
+- [✓] Refactor `DashboardView.vue` from a dynamic list to a fixed-size inventory grid based on `accountStatus.maxPersonas`.
+- [✓] Implement `EmptySlotCard.vue` as a thematic placeholder for unoccupied slots.
+- [✓] Upgrade `PersonaCard.vue` into a multi-mode state machine (View, Create, Update) capable of handling both real and `VirtualPersona` objects.
+- [✓] Implement strict row-level database locking (`for update`) during spawn actions to safely enforce `maxSpawned` capacity limits.
 
-#### Task 4.4: Persona Creation & Skin Management UI (Pending)
+#### Task 4.4: Inline Persona Creation & Modification
 
-- [ ] Build the "Create Persona" modal/form, utilizing inferred input schemas for validation.
-- [ ] Implement a Skin Upload component that interfaces with `trpc.ion.skin.upload`.
-- [ ] Integrate the skin selection into the Persona Creation/Editing flow.
+- [✓] Discard modal-based creation in favor of seamless, inline creation directly within the grid slots.
+- [✓] Implement reactive in-memory drafts (`VirtualPersona`) managed by `DashboardView.vue` and passed to `PersonaCard.vue`.
+- [✓] Replace static card titles with dynamic `<n-input>` headers for renaming and creating personas.
+- [✓] Ensure "Cancel" elegantly drops the in-memory draft or reverts unsaved name changes without network overhead.
+
+#### Task 4.5: Skin Management & Selection UI (Pending)
+
+- [ ] Build the `SkinSelectorPopover.vue` component to overlay on the `PersonaCard` (mimicking `NDatePicker` architecture).
+- [ ] Implement a Skin Upload flow directly within the popover (Base64 conversion -> `trpc.ion.skin.upload`).
+- [ ] Integrate skin selection into the Create and Update flows of `PersonaCard.vue`.
 - [ ] Ensure skin compilation status events (`SKIN_UPDATE`) are caught by the event stream and reactively update the UI (e.g., transitioning a skin from "Pending" to "Active").
 
-#### Task 4.5: Advanced Persona Management (Pending)
+#### Task 4.6: Polish & Advanced Features (Pending)
 
-- [ ] Implement a "Rename Persona" feature, utilizing `usePersonaContext` for the mutation.
+- [ ] Auto-focus `<n-input>` elements when a card enters Create or Update mode.
 - [ ] Add visual indicators for Agent Location (e.g., displaying coordinates or "Offline" status based on the `AGENT_STATE` event payload).
 - [ ] Implement global error boundary handling for catastrophic tRPC failures.
 
