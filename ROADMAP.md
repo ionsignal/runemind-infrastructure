@@ -145,16 +145,16 @@ _To support heterogeneous workloads (Minecraft, ComfyUI, vLLM) we are adopting a
 - [✓] Replace static card titles with dynamic `<n-input>` headers for renaming and creating personas.
 - [✓] Ensure "Cancel" elegantly drops the in-memory draft or reverts unsaved name changes without network overhead.
 
-#### Task 4.5: Skin Management & Selection UI (Pending)
+#### Task 4.5: Skin Management & Selection UI
 
-- [ ] Build the `SkinSelectorPopover.vue` component to overlay on the `PersonaCard` (mimicking `NDatePicker` architecture).
-- [ ] Implement a Skin Upload flow directly within the popover (Base64 conversion -> `trpc.ion.skin.upload`).
-- [ ] Integrate skin selection into the Create and Update flows of `PersonaCard.vue`.
-- [ ] Ensure skin compilation status events (`SKIN_UPDATE`) are caught by the event stream and reactively update the UI (e.g., transitioning a skin from "Pending" to "Active").
+- [✓] Build the `PersonaSkinSelector.vue` component to overlay on the `PersonaCard` (using a clean `<transition>` swap architecture).
+- [✓] Implement a Skin Upload flow directly within the selector and via Drag & Drop on the 3D Avatar (Base64 conversion -> `trpc.ion.skin.upload`).
+- [✓] Integrate skin selection into the Create and Update flows of `PersonaCard.vue`.
+- [✓] Ensure skin compilation status events (`SKIN_UPDATE`) are caught by the multiplexed event stream and reactively update the UI via `useSkins.ts`.
 
 #### Task 4.6: Polish & Advanced Features (Pending)
 
-- [ ] Auto-focus `<n-input>` elements when a card enters Create or Update mode.
+- [✓] Auto-focus `<n-input>` elements when a card enters Create or Update mode.
 - [ ] Add visual indicators for Agent Location (e.g., displaying coordinates or "Offline" status based on the `AGENT_STATE` event payload).
 - [ ] Implement global error boundary handling for catastrophic tRPC failures.
 
