@@ -131,9 +131,9 @@ _To support heterogeneous workloads (Minecraft, ComfyUI, vLLM) we are adopting a
 - [ ] Implement global error boundary handling for catastrophic tRPC or WebSocket stream failures.
 - [ ] **[NEW] Asynchronous Command Feedback:** Catch `SYSTEM_COMMAND_FAILED` events via the `onEventStream` multiplexer to display real-time toast notifications (`useMessage().error`) when Java Engine operations (like a delayed spawn rejection) fail after the initial tRPC request succeeds.
 
-#### Task 4.3: [Reserved for Next Phase]
+#### Task 4.3: Persona Personality Editor
 
-- [ ] _(To be defined)_
+- [ ] Rough Draft
 
 ## Deferred / Backlog
 
