@@ -106,6 +106,8 @@ _To support heterogeneous workloads (Minecraft, ComfyUI, vLLM) we are adopting a
   - **[ ] Raw Editor Fallback:** For unstructured files or complex configurations lacking a Zod schema, provide a raw Monaco (VSCode) text editor in the browser to allow admins to edit the disk string directly (preserving manual `# comments`).
   - **[ ] Schema-Driven Forms:** Build a recursive `<SchemaRenderer>` Vue component that iterates over the Zod object provided by the backend, automatically mapping types to Naive UI inputs based on the target file defined in the Blueprint.
 
+Here is the updated and condensed roadmap for Phase 4, reflecting our recent architectural decisions and the completion of the Personality Editor.
+
 ### Phase 4: Front-End Architecture & tRPC Integration
 
 **Core Architectural Rules & Constraints:**
@@ -119,21 +121,22 @@ _To support heterogeneous workloads (Minecraft, ComfyUI, vLLM) we are adopting a
 
 #### Task 4.1: Foundation & Persona Management UI (Completed)
 
-- **End-to-End Type Safety:** Established a centralized `types.ts` using tRPC inference, seamlessly linking `AccountStatus`, `PersonaListItem`, and `PersonaSkin` to the database schema.
-- **Context Boundaries:** Implemented robust Provider/Injector composables (`usePersonas`, `useSkins`) that multiplex the underlying Fastify WebSocket stream into reactive UI updates.
-- **Slot-Based Inventory:** Refactored the dashboard into a fixed-size grid based on `accountStatus.maxPersonas`, utilizing `EmptySlotCard` placeholders and `DashboardView` orchestration.
-- **Smart Multi-State Cards:** Upgraded `PersonaCard` into a localized state machine capable of handling in-memory drafts (`VirtualPersona`), inline renaming, and pessimistic spawn/despawn actions.
-- **Skin Management Integration:** Built a seamless `<transition>`-based `PersonaSkinSelector` with Drag & Drop support, 3D `skinview3d` rendering, 2D face extraction, and real-time NATS event listeners for Mojang compilation statuses.
+- **E2E Type Safety & Context Boundaries:** Centralized `types.ts` via tRPC inference. Implemented `provide/inject` composables (`usePersonas`, `useSkins`) to multiplex Fastify WebSocket streams into reactive UI updates.
+- **Slot-Based Dashboard:** Fixed-size grid based on account capacity, using `DashboardView` orchestration and `EmptySlotCard` placeholders.
+- **Smart Multi-State Cards:** Localized state machines handling in-memory drafts (`VirtualPersona`), inline renaming, and pessimistic spawn/despawn actions. _Key Pattern:_ Decoupled "dirty state" (`isEditing`) from UI focus behaviors to prevent UX focus-stealing and accidental state-cancellation.
+- **Skin & Personality Management:** Integrated `<transition>`-based tool overlays.
+  - _Skins:_ Drag & Drop 3D skin rendering (`skinview3d`) with 2D face extraction and real-time NATS event listeners for Mojang compilation statuses.
+  - _Personality:_ Sliders and quirks editor with a real-time "Dynamic Bio" preview. _Key Pattern:_ Powered by a shared Client/Server prompt dictionary (`TraitDictionary`) to guarantee UI feedback matches the LLM injection prompt exactly.
 
 #### Task 4.2: Polish & Advanced Features (Pending)
 
 - [ ] Add visual indicators for Agent Location (e.g., displaying coordinates or "Offline" status based on the `AGENT_STATE` event payload).
 - [ ] Implement global error boundary handling for catastrophic tRPC or WebSocket stream failures.
-- [ ] **[NEW] Asynchronous Command Feedback:** Catch `SYSTEM_COMMAND_FAILED` events via the `onEventStream` multiplexer to display real-time toast notifications (`useMessage().error`) when Java Engine operations (like a delayed spawn rejection) fail after the initial tRPC request succeeds.
+- [ ] **Asynchronous Command Feedback:** Catch `SYSTEM_COMMAND_FAILED` events via the `onEventStream` multiplexer to display real-time toast notifications (`useMessage().error`) when Java Engine operations (like a delayed spawn rejection) fail after the initial tRPC request succeeds.
 
-#### Task 4.3: Persona Personality Editor
+#### Task 4.3: TBA
 
-- [ ] Rough Draft
+- [ ] To be determined.
 
 ## Deferred / Backlog
 
