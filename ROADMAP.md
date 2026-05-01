@@ -1,6 +1,6 @@
 ## Infrastructure Roadmap
 
-**Mission:** Architect and maintain a high-performance, hybrid-workload edge server balancing a ~35B parameter MoE LLM (AI Inference) and real-time Minecraft game servers (Incus) within a strict Zero-Trust DMZ environment. All workloads, including the AI engine, operate strictly within Incus containers to ensure absolute host isolation.
+**Mission:** Architect and maintain **Arachnid**, a high-performance, open-source orchestration engine. Arachnid takes a single declarative blueprint and spawns per-user application instances with first-class GPU passthrough, automatic HTTPS routing, copy-on-write storage workspaces, and unified identity. While currently balancing a ~35B parameter MoE LLM (AI Inference) and real-time Minecraft game servers as our primary reference implementations, the platform is designed to dynamically provision heterogeneous workloads (e.g., PyTorch research environments, ComfyUI, web frontends) within a strict Zero-Trust DMZ environment. All workloads operate strictly within Incus containers to ensure absolute host isolation.
 
 ### Environment & Hardware Baseline
 
@@ -12,23 +12,23 @@
 - **Storage Layout:**
   - _OS Drive:_ 250GB NVMe (`/dev/nvme0n1`, Ubuntu 24.04 LTS, ext4, No LVM).
   - _AI Vault:_ 2TB NVMe (`/dev/nvme1n1`, ZFS Pool `is-nvme-pool`, dedicated to Incus).
-  - _Game Tier:_ 4x 500GB SATA HDDs/SSDs (ZFS Pool configured for Incus Custom Storage Volumes).
+  - _Stateful Application Tier:_ 4x 500GB SATA HDDs/SSDs (ZFS Pool configured for Incus Custom Storage Volumes).
 
 ### Architectural Constraints
 
 - **Zero-Trust DMZ:** The host cannot initiate outbound connections to Internal (`192.168.x.x`, `10.x.x.x` external) or Home (`172.20.3.0/24`) networks.
-- **Defense-in-Depth Containerization:** No workloads run directly on the bare-metal host OS. Both the AI Inference Engine and Game Servers operate inside heavily restricted Incus containers.
+- **Defense-in-Depth Containerization:** No workloads run directly on the bare-metal host OS. Both foundational AI engines and tenant applications operate inside heavily restricted Incus containers.
 - **Micro-CA SSL:** Wildcard certificates (`*.ionsignal.com`/`*.runemind.com`) are generated securely via Caddy using the `acme-dns` plugin hosted on an isolated AWS ARM64 instance.
 
 #### The Paradigm: Who is the Source of Truth?
 
-To succeed long-term, we must strictly divide our "Truth" into three distinct pillars:
+To succeed long-term across heterogeneous workloads, we must strictly divide our "Truth" into three distinct pillars:
 
 1.  **Postgres = The Business Truth.**
-    - _What it knows:_ "User A owns an instance named `alpha-node`. They are allowed to use 4 CPUs. It is supposed to be a `papermc` app."
+    - _What it knows:_ "User A owns an instance named `alpha-node`. They are allowed to use 4 CPUs. It is supposed to be a `papermc` (or `jupyter-pytorch`) app."
     - _What it DOES NOT know:_ How big the disk is, what IP address it has, or what the volumes are named.
 2.  **The Blueprints (YAML) = The Genetic Code.**
-    - _What it knows:_ "If someone asks to build a `papermc` app, here are the instructions (volumes, files, ports) to assemble it."
+    - _What it knows:_ "If someone asks to build a `papermc` or `comfyui` app, here are the instructions (volumes, files, ports) to assemble it."
     - _What it DOES NOT know:_ Anything about existing servers. It is just a recipe book.
 3.  **Incus (ZFS) = The Infrastructure Truth (The Data Plane).**
     - _What it knows:_ "I have a container named `alpha-node`. Attached to it are two ZFS datasets named `alpha-node-world` and `alpha-node-plugins`."
@@ -64,7 +64,7 @@ _Objective: Deploy the Qwen ~35B MoE LLM securely within an Incus container, uti
 
 ## Phase 3: Incus Containerization & Configuration Management
 
-_Objective: Deploy a highly reproducible, stateless PaperMC base image and implement a GitOps-style "Configuration Drift Management" system. This phase eliminates environment variable limitations and establishes Postgres as the absolute source of truth for all container states, strictly decoupling ephemeral compute from persistent ZFS storage._
+_Objective: Deploy highly reproducible, stateless base images and implement a GitOps-style "Configuration Drift Management" system. This phase eliminates environment variable limitations and establishes Postgres as the absolute source of truth for all container states, strictly decoupling ephemeral compute from persistent ZFS storage._
 
 ### **Completed Foundations (The Stateless Edge)**
 
@@ -75,7 +75,7 @@ _Objective: Deploy a highly reproducible, stateless PaperMC base image and imple
 
 ### **Stateful Orchestration & Drift (Hybrid Architecture)**
 
-_To support heterogeneous workloads (Minecraft, ComfyUI, vLLM) we are adopting a Hybrid State Model. The "Control Plane" (Postgres + Blueprints) strictly dictates infrastructure boundaries, while the "Data Plane" (ZFS Disk) acts as the absolute Source of Truth for application-level behaviors._
+_To support heterogeneous workloads (Minecraft, ComfyUI, generic web apps) we are adopting a Hybrid State Model. The "Control Plane" (Postgres + Blueprints) strictly dictates infrastructure boundaries, while the "Data Plane" (ZFS Disk) acts as the absolute Source of Truth for application-level behaviors._
 
 - **[✓] 3.1. Blueprints & The Hardware Ledger**
   _Separate "What an app is" (YAML Blueprints) from "Who owns it and what hardware it gets" (Postgres). This acts as the brain of the orchestrator, treating the Incus hypervisor as a "dumb" worker node._
@@ -106,9 +106,7 @@ _To support heterogeneous workloads (Minecraft, ComfyUI, vLLM) we are adopting a
   - **[ ] Raw Editor Fallback:** For unstructured files or complex configurations lacking a Zod schema, provide a raw Monaco (VSCode) text editor in the browser to allow admins to edit the disk string directly (preserving manual `# comments`).
   - **[ ] Schema-Driven Forms:** Build a recursive `<SchemaRenderer>` Vue component that iterates over the Zod object provided by the backend, automatically mapping types to Naive UI inputs based on the target file defined in the Blueprint.
 
-Here is the updated and condensed roadmap for Phase 4, reflecting our recent architectural decisions and the completion of the Personality Editor.
-
-### Phase 4: Front-End Architecture & tRPC Integration
+## Phase 4: Front-End Architecture & tRPC Integration
 
 **Core Architectural Rules & Constraints:**
 
@@ -137,6 +135,16 @@ Here is the updated and condensed roadmap for Phase 4, reflecting our recent arc
 #### Task 4.3: TBA
 
 - [ ] To be determined.
+
+## Phase 5: Arachnid Control Plane (Admin UI/UX)
+
+_Objective: Build a generalized, web-based administrative dashboard—conceptually similar to the native Incus or LXD UI—to manage the underlying infrastructure, blueprints, and tenant instances across any workload type directly from the browser._
+
+- **[ ] Blueprint Catalog & Editor:** Implement a UI to visually explore loaded YAML blueprints (`configs/applications/*.yaml`). Include a Monaco-powered YAML editor to create, validate, and hot-reload custom blueprints without touching the host filesystem.
+- **[ ] Unified Fleet Management:** Create a master dashboard of all provisioned containers (Minecraft, vLLM, generic web apps). Display real-time state (Running, Offline), IP allocations, and active hardware quotas.
+- **[ ] Real-Time Telemetry:** Multiplex Incus WebSocket streams through Fastify to display live CPU, RAM, and Network I/O metrics for individual instances directly in the Vue frontend.
+- **[ ] Live Web Console:** Implement a browser-based terminal (via `xterm.js`) attached to the Incus `exec` API. This allows administrators to securely drop into a bash shell inside any heterogeneous container without requiring host SSH access.
+- **[ ] Storage & Volume Visualization:** Build an interface to view and manage ZFS custom volumes, mapping which datasets are attached to which instances, and providing a UI for taking or restoring ZFS snapshots.
 
 ## Deferred / Backlog
 
